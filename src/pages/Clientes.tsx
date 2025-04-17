@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { useData } from "@/contexts/DataContext";
@@ -13,14 +12,15 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Download, MessageSquare, Plus, Search, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Customer } from "@/types/models";
 
 const Clientes = () => {
   const { customers, addCustomer, deleteCustomer, exportToSheet } = useData();
   const [searchQuery, setSearchQuery] = useState("");
   const [openAddDialog, setOpenAddDialog] = useState(false);
   
-  // Form state
-  const [formData, setFormData] = useState({
+  // Form state with properly typed status
+  const [formData, setFormData] = useState<Omit<Customer, "id">>({
     name: "",
     email: "",
     phone: "",
@@ -29,7 +29,7 @@ const Clientes = () => {
     totalPurchases: 0,
     lastPurchase: "",
     notes: "",
-    status: "active",
+    status: "active", // Explicitly use "active" as the initial value
   });
 
   // Handle form changes
@@ -43,9 +43,17 @@ const Clientes = () => {
     });
   };
 
-  // Handle select changes
+  // Handle select changes with proper typing for status
   const handleSelectChange = (name: string, value: string) => {
-    setFormData({ ...formData, [name]: value });
+    if (name === "status") {
+      // Ensure status is only "active" or "inactive"
+      setFormData({ 
+        ...formData, 
+        [name]: value as "active" | "inactive"
+      });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
   // Submit form
@@ -56,7 +64,7 @@ const Clientes = () => {
     resetForm();
   };
 
-  // Reset form
+  // Reset form with properly typed status
   const resetForm = () => {
     setFormData({
       name: "",
@@ -67,7 +75,7 @@ const Clientes = () => {
       totalPurchases: 0,
       lastPurchase: "",
       notes: "",
-      status: "active",
+      status: "active", // Explicitly use "active" as the initial value
     });
   };
 

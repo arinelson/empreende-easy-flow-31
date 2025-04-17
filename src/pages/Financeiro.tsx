@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Download, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { FinancialTransaction } from "@/types/models";
 
 const Financeiro = () => {
   const { 
@@ -24,13 +25,13 @@ const Financeiro = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [openAddDialog, setOpenAddDialog] = useState(false);
   
-  // Form state
-  const [formData, setFormData] = useState({
+  // Form state with properly typed transaction type
+  const [formData, setFormData] = useState<Omit<FinancialTransaction, "id">>({
     description: "",
     amount: 0,
     date: new Date().toISOString().split('T')[0],
     category: "Vendas",
-    type: "income",
+    type: "income", // Explicitly use "income" as the initial value
     paymentMethod: "Dinheiro",
   });
 
@@ -40,9 +41,17 @@ const Financeiro = () => {
     setFormData({ ...formData, [name]: name === "amount" ? parseFloat(value) : value });
   };
 
-  // Handle select changes
+  // Handle select changes with proper typing for type
   const handleSelectChange = (name: string, value: string) => {
-    setFormData({ ...formData, [name]: value });
+    if (name === "type") {
+      // Ensure type is only "income" or "expense"
+      setFormData({ 
+        ...formData, 
+        [name]: value as "income" | "expense"
+      });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
   // Submit form
@@ -53,14 +62,14 @@ const Financeiro = () => {
     resetForm();
   };
 
-  // Reset form
+  // Reset form with properly typed transaction type
   const resetForm = () => {
     setFormData({
       description: "",
       amount: 0,
       date: new Date().toISOString().split('T')[0],
       category: "Vendas",
-      type: "income",
+      type: "income", // Explicitly use "income" as the initial value
       paymentMethod: "Dinheiro",
     });
   };
