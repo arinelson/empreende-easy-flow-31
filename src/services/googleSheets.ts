@@ -13,7 +13,7 @@ import {
 export type CorsMethod = 'direct' | 'proxy' | 'no-cors' | 'no-cache' | 'xhr' | 'jsonp' | 'iframe';
 
 // URLs base para cada planilha (configurável pelo usuário)
-export let FINANCEIRO_SHEET_URL = "https://docs.google.com/spreadsheets/d/1nOj6f8jrx5P10KcNDhkJxnd0303J3ktT5SE3-ie4wjM/edit?gid=0#gid=0";
+export let FINANCEIRO_SHEET_URL = "https://docs.google.com/spreadsheets/d/1nOj6f8jrx5P10KcNDhkJxnd0303J3ktT5SE3-ie4wjM/edit?gid=1993830262#gid=1993830262";
 export let CLIENTES_SHEET_URL = "https://docs.google.com/spreadsheets/d/1ivmrRgpduYwyV9kXc3jpj9TdjMGAgwGo8akhiWimOzc/edit?gid=0#gid=0";
 export let OPERACOES_SHEET_URL = "https://docs.google.com/spreadsheets/d/1zMwckW0sLR03lJ89rKQvHRQnjj-JEjVcinztAit6Zi4/edit?gid=0#gid=0";
 
