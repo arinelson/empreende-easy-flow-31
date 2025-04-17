@@ -8,6 +8,9 @@ import {
   OPERACOES_SCRIPT_URL
 } from "@/types/models";
 
+// Define the CorsMethod type
+export type CorsMethod = 'direct' | 'proxy' | 'no-cors' | 'no-cache' | 'xhr' | 'jsonp' | 'iframe';
+
 // URLs base para cada planilha (configurável pelo usuário)
 export let FINANCEIRO_SHEET_URL = "https://docs.google.com/spreadsheets/d/1nOj6f8jrx5P10KcNDhkJxnd0303J3ktT5SE3-ie4wjM/edit?gid=0#gid=0";
 export let CLIENTES_SHEET_URL = "https://docs.google.com/spreadsheets/d/1ivmrRgpduYwyV9kXc3jpj9TdjMGAgwGo8akhiWimOzc/edit?gid=0#gid=0";
@@ -19,6 +22,103 @@ export let scriptUrls = {
   clientes: CLIENTES_SCRIPT_URL,
   operacoes: OPERACOES_SCRIPT_URL
 };
+
+// Current CORS method to use for requests
+let currentCorsMethod: CorsMethod = 'direct';
+
+// Get current CORS method
+export function getCurrentCorsMethod(): CorsMethod {
+  return currentCorsMethod;
+}
+
+// Set CORS method
+export function setCorsMethod(method: CorsMethod) {
+  currentCorsMethod = method;
+  localStorage.setItem('cors_method', method);
+  syncLog.addLog("Configuração", "success", `Método CORS alterado para ${method}`);
+}
+
+// Test a CORS method
+export async function testCorsMethod(url: string, method: CorsMethod): Promise<{success: boolean, error?: string}> {
+  try {
+    let response;
+    
+    switch(method) {
+      case 'direct':
+        response = await fetch(url, { 
+          method: 'GET',
+          mode: 'cors'
+        });
+        break;
+      case 'proxy':
+        // Using a CORS proxy service
+        const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`;
+        response = await fetch(proxyUrl, { method: 'GET' });
+        break;
+      case 'no-cors':
+        response = await fetch(url, { 
+          method: 'GET',
+          mode: 'no-cors'
+        });
+        break;
+      case 'no-cache':
+        response = await fetch(url, { 
+          method: 'GET',
+          mode: 'cors',
+          cache: 'no-cache',
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        break;
+      case 'xhr':
+        // Simple XHR implementation
+        return new Promise((resolve) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('GET', url);
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve({ success: true });
+            } else {
+              resolve({ success: false, error: `Status: ${xhr.status}` });
+            }
+          };
+          xhr.onerror = () => {
+            resolve({ success: false, error: 'XHR request failed' });
+          };
+          xhr.send();
+        });
+      case 'jsonp':
+      case 'iframe':
+        // These methods require more complex implementation
+        // and are not suitable for all API endpoints
+        throw new Error(`Método ${method} não implementado para teste automático`);
+    }
+    
+    // For no-cors mode, we can't access the response status
+    if (method === 'no-cors') {
+      return { success: true };
+    }
+    
+    return { 
+      success: response.ok, 
+      error: !response.ok ? `Status: ${response.status}` : undefined
+    };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+// Initialize CORS method from localStorage
+(() => {
+  const savedMethod = localStorage.getItem('cors_method');
+  if (savedMethod && ['direct', 'proxy', 'no-cors', 'no-cache', 'xhr', 'jsonp', 'iframe'].includes(savedMethod)) {
+    currentCorsMethod = savedMethod as CorsMethod;
+  }
+})();
 
 // Sistema de log para rastrear operações com Google Sheets
 export const syncLog = {
@@ -103,7 +203,7 @@ export function updateScriptUrls(
 })();
 
 // Função auxiliar para obter a URL do script correta com base no tipo
-function getScriptUrl(type: 'financeiro' | 'clientes' | 'operacoes'): string {
+export function getScriptUrl(type: 'financeiro' | 'clientes' | 'operacoes'): string {
   return scriptUrls[type];
 }
 
