@@ -1,4 +1,3 @@
-
 import { FinancialTransaction, Customer, Product, Supplier, SHEET_URL } from "@/types/models";
 import { toast } from "sonner";
 
@@ -41,40 +40,342 @@ export const syncLog = {
   }
 };
 
-// Função auxiliar para lidar com CORS
-const fetchWithCORS = async (url: string, options: RequestInit = {}) => {
-  // Adicionar cabeçalhos CORS necessários
-  const corsOptions: RequestInit = {
-    ...options,
-    mode: 'cors',
-    headers: {
-      ...options.headers,
-      'Content-Type': 'application/json',
-    },
-  };
+// Métodos disponíveis para contornar CORS
+export type CorsMethod = 'direct' | 'proxy' | 'jsonp' | 'no-cors' | 'no-cache' | 'xhr' | 'iframe';
+
+// Configuração global do método CORS
+let currentCorsMethod: CorsMethod = 'direct';
+
+export const setCorsMethod = (method: CorsMethod) => {
+  syncLog.add('CORS Config', `Definindo método para: ${method}`, '');
+  currentCorsMethod = method;
+};
+
+export const getCurrentCorsMethod = (): CorsMethod => currentCorsMethod;
+
+// JSONP implementação (script tag dinâmico)
+const fetchWithJsonp = (url: string): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+    const script = document.createElement('script');
+    
+    // Limpar função de callback e remover script após execução
+    const cleanup = () => {
+      delete (window as any)[callbackName];
+      document.body.removeChild(script);
+    };
+    
+    // Definir callback global
+    (window as any)[callbackName] = (data: any) => {
+      cleanup();
+      resolve(data);
+    };
+    
+    // Configurar script para falhar após timeout
+    script.onerror = (err) => {
+      cleanup();
+      reject(new Error('JSONP request failed'));
+    };
+    
+    // Adicionar script ao DOM
+    const urlWithCallback = url.includes('?') 
+      ? `${url}&callback=${callbackName}` 
+      : `${url}?callback=${callbackName}`;
+    
+    script.src = urlWithCallback;
+    document.body.appendChild(script);
+    
+    // Timeout de segurança
+    setTimeout(() => {
+      if ((window as any)[callbackName]) {
+        cleanup();
+        reject(new Error('JSONP request timed out'));
+      }
+    }, 30000);
+  });
+};
+
+// Implementação iframe
+const fetchWithIframe = (url: string, data?: any): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    const iframe = document.createElement('iframe');
+    const uniqueId = `iframe_${Date.now()}`;
+    
+    iframe.style.display = 'none';
+    iframe.name = uniqueId;
+    iframe.id = uniqueId;
+    
+    // Evento para receber dados de volta
+    window.addEventListener('message', function onMessage(event) {
+      try {
+        const response = JSON.parse(event.data);
+        if (response.iframeId === uniqueId) {
+          window.removeEventListener('message', onMessage);
+          document.body.removeChild(iframe);
+          resolve(response.data);
+        }
+      } catch (e) {
+        // Ignorar mensagens que não são JSON
+      }
+    });
+    
+    // Configurar iframe para falhar após timeout
+    setTimeout(() => {
+      if (document.getElementById(uniqueId)) {
+        document.body.removeChild(iframe);
+        reject(new Error('Iframe request timed out'));
+      }
+    }, 30000);
+    
+    // Criar formulário dentro do iframe
+    document.body.appendChild(iframe);
+    const form = document.createElement('form');
+    form.action = url;
+    form.method = data ? 'POST' : 'GET';
+    form.target = uniqueId;
+    
+    if (data) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'data';
+      input.value = JSON.stringify(data);
+      form.appendChild(input);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  });
+};
+
+// XMLHttpRequest implementação
+const fetchWithXhr = async (url: string, options: RequestInit = {}): Promise<Response> => {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(options.method || 'GET', url, true);
+    
+    // Adicionar headers
+    if (options.headers) {
+      Object.entries(options.headers).forEach(([key, value]) => {
+        xhr.setRequestHeader(key, value as string);
+      });
+    }
+    
+    xhr.onload = () => {
+      const response = new Response(xhr.responseText, {
+        status: xhr.status,
+        statusText: xhr.statusText,
+        headers: new Headers({
+          'Content-Type': xhr.getResponseHeader('Content-Type') || 'application/json'
+        })
+      });
+      resolve(response);
+    };
+    
+    xhr.onerror = () => reject(new Error('XHR request failed'));
+    xhr.ontimeout = () => reject(new Error('XHR request timed out'));
+    
+    // Enviar dados
+    const body = options.body ? 
+      (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)) : 
+      null;
+    
+    xhr.send(body);
+  });
+};
+
+// Função avançada para teste de CORS
+export const testCorsMethod = async (
+  url: string, 
+  method: CorsMethod, 
+  body?: any
+): Promise<{ success: boolean, data?: any, error?: string, method: CorsMethod }> => {
+  syncLog.add('CORS Test', `Testando método: ${method}`, `URL: ${url}`);
   
   try {
-    // Primeiro, tentar com fetch direto (pode funcionar se o CORS estiver configurado no servidor)
-    syncLog.add('Fetch', 'Tentando', `URL: ${url}`);
-    const response = await fetch(url, corsOptions);
-    syncLog.add('Fetch', 'Sucesso', `URL: ${url}`);
-    return response;
-  } catch (error) {
-    // Se falhar por CORS, tentar com proxy JSONP ou outra estratégia
-    syncLog.add('Fetch', 'Erro CORS', `URL: ${url}, Erro: ${error}`);
+    let response;
     
-    // Tentar com proxy CORS
-    try {
-      const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`;
-      syncLog.add('Fetch', 'Tentando com proxy', `URL: ${proxyUrl}`);
-      const proxyResponse = await fetch(proxyUrl, corsOptions);
-      syncLog.add('Fetch', 'Sucesso com proxy', `URL: ${proxyUrl}`);
-      return proxyResponse;
-    } catch (proxyError) {
-      // Se o proxy também falhar, registrar erro e tentar com abordagem JSONP
-      syncLog.add('Fetch', 'Erro proxy', `URL: ${url}, Erro: ${proxyError}`);
-      throw proxyError; // Propagar o erro para tratamento posterior
+    switch (method) {
+      case 'direct':
+        response = await fetch(url, {
+          method: body ? 'POST' : 'GET',
+          mode: 'cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: body ? JSON.stringify(body) : undefined
+        });
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+        const data = await response.json();
+        return { success: true, data, method };
+        
+      case 'proxy':
+        const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`;
+        response = await fetch(proxyUrl, {
+          method: body ? 'POST' : 'GET',
+          mode: 'cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: body ? JSON.stringify(body) : undefined
+        });
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+        const proxyData = await response.json();
+        return { success: true, data: proxyData, method };
+        
+      case 'jsonp':
+        if (body) {
+          throw new Error('JSONP não suporta requisições POST com corpo');
+        }
+        const jsonpResult = await fetchWithJsonp(url);
+        return { success: true, data: jsonpResult, method };
+        
+      case 'no-cors':
+        await fetch(url, {
+          method: body ? 'POST' : 'GET',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: body ? JSON.stringify(body) : undefined
+        });
+        // No-cors sempre retorna "opaque response" que não pode ser lida
+        // Assumimos sucesso se não houver erro
+        return { success: true, data: { message: "Requisição enviada no modo no-cors (resposta não disponível)" }, method };
+        
+      case 'no-cache':
+        response = await fetch(url, {
+          method: body ? 'POST' : 'GET',
+          mode: 'cors',
+          cache: 'no-cache',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache'
+          },
+          body: body ? JSON.stringify(body) : undefined
+        });
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+        const noCacheData = await response.json();
+        return { success: true, data: noCacheData, method };
+        
+      case 'xhr':
+        response = await fetchWithXhr(url, {
+          method: body ? 'POST' : 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          body
+        });
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+        const xhrData = await response.json();
+        return { success: true, data: xhrData, method };
+        
+      case 'iframe':
+        const iframeResult = await fetchWithIframe(url, body);
+        return { success: true, data: iframeResult, method };
+        
+      default:
+        throw new Error(`Método CORS desconhecido: ${method}`);
     }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    syncLog.add('CORS Test', `Erro com método ${method}`, errorMessage);
+    return { success: false, error: errorMessage, method };
+  }
+};
+
+// Função auxiliar avançada para lidar com CORS
+const fetchWithCORS = async (url: string, options: RequestInit = {}): Promise<Response> => {
+  syncLog.add('Fetch', `Tentando com método: ${currentCorsMethod}`, `URL: ${url}`);
+  
+  try {
+    switch (currentCorsMethod) {
+      case 'direct':
+        const directResponse = await fetch(url, {
+          ...options,
+          mode: 'cors',
+          headers: {
+            ...options.headers,
+            'Content-Type': 'application/json',
+          }
+        });
+        syncLog.add('Fetch', 'Sucesso com direct', `URL: ${url}`);
+        return directResponse;
+        
+      case 'proxy':
+        const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`;
+        const proxyResponse = await fetch(proxyUrl, {
+          ...options,
+          mode: 'cors',
+          headers: {
+            ...options.headers,
+            'Content-Type': 'application/json',
+          }
+        });
+        syncLog.add('Fetch', 'Sucesso com proxy', `URL: ${proxyUrl}`);
+        return proxyResponse;
+        
+      case 'no-cors':
+        // No-cors não permite ler a resposta, usado principalmente para POST
+        const noCorsResponse = await fetch(url, {
+          ...options,
+          mode: 'no-cors',
+          headers: {
+            ...options.headers,
+            'Content-Type': 'application/json',
+          }
+        });
+        syncLog.add('Fetch', 'Enviado com no-cors', `URL: ${url}`);
+        // Simulamos uma resposta bem-sucedida já que não podemos ler a real
+        return new Response(JSON.stringify({ success: true, simulated: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+      case 'no-cache':
+        const noCacheResponse = await fetch(url, {
+          ...options,
+          mode: 'cors',
+          cache: 'no-cache',
+          headers: {
+            ...options.headers,
+            'Content-Type': 'application/json',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache'
+          }
+        });
+        syncLog.add('Fetch', 'Sucesso com no-cache', `URL: ${url}`);
+        return noCacheResponse;
+        
+      case 'xhr':
+        const xhrResponse = await fetchWithXhr(url, options);
+        syncLog.add('Fetch', 'Sucesso com XHR', `URL: ${url}`);
+        return xhrResponse;
+        
+      case 'jsonp':
+        if (options.method === 'POST') {
+          throw new Error('JSONP não suporta requisições POST com corpo');
+        }
+        const jsonpResult = await fetchWithJsonp(url);
+        syncLog.add('Fetch', 'Sucesso com JSONP', `URL: ${url}`);
+        // Converter resultado JSONP para Response
+        return new Response(JSON.stringify(jsonpResult), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+      case 'iframe':
+        const body = options.body ? 
+          (typeof options.body === 'string' ? JSON.parse(options.body) : options.body) : 
+          undefined;
+        
+        const iframeResult = await fetchWithIframe(url, body);
+        syncLog.add('Fetch', 'Sucesso com iframe', `URL: ${url}`);
+        // Converter resultado iframe para Response
+        return new Response(JSON.stringify(iframeResult), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+      default:
+        throw new Error(`Método CORS desconhecido: ${currentCorsMethod}`);
+    }
+  } catch (error) {
+    syncLog.add('Fetch', `Erro com método ${currentCorsMethod}`, `${error}`);
+    throw error;
   }
 };
 
