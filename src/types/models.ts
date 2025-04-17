@@ -6,7 +6,7 @@ export const PASSWORD = "admin12345";
 
 // Google Sheets integration
 // Replace with your own API URL
-export const SHEET_URL = "https://script.google.com/macros/s/your-google-script-id";
+export const SHEET_URL = "https://script.google.com/macros/s/SEU-ID-DO-SCRIPT-AQUI";
 
 // Types for various data models
 
