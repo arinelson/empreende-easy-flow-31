@@ -22,7 +22,8 @@ import {
   syncWithGoogleSheets,
   exportTransactionsToSheet,
   exportCustomersToSheet,
-  exportProductsToSheet
+  exportProductsToSheet,
+  importFromGoogleSheets
 } from "@/services/googleSheets";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
@@ -47,7 +48,9 @@ interface DataContextType {
   deleteSupplier: (id: string) => void;
   syncWithSheet: () => Promise<void>;
   exportToSheet: (type: 'transactions' | 'customers' | 'products') => Promise<void>;
+  importFromSheet: () => Promise<void>;
   clearData: () => void;
+  isLoading: boolean;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -57,6 +60,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary>({
     totalIncome: 0,
     totalExpenses: 0,
@@ -223,15 +227,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Google Sheets sync
   const syncWithSheet = async () => {
     try {
+      setIsLoading(true);
+      toast.info("Sincronizando com Google Sheets...");
       await syncWithGoogleSheets(transactions, customers, products, suppliers);
+      toast.success("Dados sincronizados com Google Sheets com sucesso!");
     } catch (error) {
-      console.error("Error syncing with Google Sheets:", error);
+      console.error("Erro ao sincronizar com Google Sheets:", error);
       toast.error("Erro ao sincronizar com Google Sheets.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const exportToSheet = async (type: 'transactions' | 'customers' | 'products') => {
     try {
+      setIsLoading(true);
+      toast.info(`Exportando ${type === 'transactions' ? 'transações' : type === 'customers' ? 'clientes' : 'produtos'}...`);
+      
       switch (type) {
         case 'transactions':
           await exportTransactionsToSheet(transactions);
@@ -243,9 +255,46 @@ export function DataProvider({ children }: { children: ReactNode }) {
           await exportProductsToSheet(products);
           break;
       }
+      
+      toast.success(`${type === 'transactions' ? 'Transações' : type === 'customers' ? 'Clientes' : 'Produtos'} exportados com sucesso!`);
     } catch (error) {
-      console.error(`Error exporting ${type}:`, error);
+      console.error(`Erro ao exportar ${type}:`, error);
       toast.error(`Erro ao exportar ${type}.`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Import from Google Sheets
+  const importFromSheet = async () => {
+    try {
+      setIsLoading(true);
+      toast.info("Importando dados do Google Sheets...");
+      
+      const data = await importFromGoogleSheets();
+      
+      if (data) {
+        setTransactions(data.transactions);
+        saveTransactions(data.transactions);
+        
+        setCustomers(data.customers);
+        saveCustomers(data.customers);
+        
+        setProducts(data.products);
+        saveProducts(data.products);
+        
+        setSuppliers(data.suppliers);
+        saveSuppliers(data.suppliers);
+        
+        toast.success("Dados importados com sucesso do Google Sheets!");
+      } else {
+        toast.error("Não foi possível importar os dados do Google Sheets.");
+      }
+    } catch (error) {
+      console.error("Erro ao importar do Google Sheets:", error);
+      toast.error("Erro ao importar do Google Sheets.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -283,7 +332,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         deleteSupplier,
         syncWithSheet,
         exportToSheet,
+        importFromSheet,
         clearData,
+        isLoading,
       }}
     >
       {children}

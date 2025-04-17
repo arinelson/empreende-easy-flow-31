@@ -52,29 +52,32 @@ const Financeiro = () => {
   // Handle form changes
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: name === "amount" ? parseFloat(value) : value });
+    setFormData(prev => ({ 
+      ...prev, 
+      [name]: name === "amount" ? parseFloat(value) : value 
+    }));
   };
 
   // Handle select changes with proper typing for type
   const handleSelectChange = (name: string, value: string) => {
     if (name === "type") {
       // Ensure type is only "income" or "expense" or "refund"
-      setFormData({ 
-        ...formData, 
+      setFormData(prev => ({ 
+        ...prev, 
         [name]: value as "income" | "expense" | "refund"
-      });
+      }));
     } else if (name === "status") {
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         [name]: value as "pending" | "completed" | "canceled"
-      });
+      }));
     } else {
-      setFormData({ ...formData, [name]: value });
+      setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
 
   const handleCheckboxChange = (name: string, checked: boolean) => {
-    setFormData({ ...formData, [name]: checked });
+    setFormData(prev => ({ ...prev, [name]: checked }));
   };
 
   const handleCustomerSelect = (customerId: string | undefined) => {
@@ -82,17 +85,17 @@ const Financeiro = () => {
     
     if (customerId) {
       const customer = customers.find(c => c.id === customerId);
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         customerId,
         customer: customer?.name || ''
-      });
+      }));
     } else {
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         customerId: undefined,
         customer: undefined
-      });
+      }));
     }
   };
 
@@ -106,11 +109,11 @@ const Financeiro = () => {
         return product?.name || '';
       });
       
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         productIds: newProducts,
         products: productNames
-      });
+      }));
     }
   };
 
@@ -123,11 +126,11 @@ const Financeiro = () => {
       return product?.name || '';
     });
     
-    setFormData({
-      ...formData,
+    setFormData(prev => ({
+      ...prev,
       productIds: newProducts,
       products: productNames
-    });
+    }));
   };
 
   // Submit form
@@ -168,7 +171,7 @@ const Financeiro = () => {
   return (
     <PageLayout>
       <div className="flex flex-col gap-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0">
           <div>
             <h1 className="heading-xl">Gestão Financeira</h1>
             <p className="text-muted-foreground">
@@ -176,14 +179,14 @@ const Financeiro = () => {
             </p>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 w-full md:w-auto">
             <Button
               onClick={() => syncWithSheet()}
               variant="outline"
               className="flex gap-2 items-center"
             >
               <RefreshCw size={16} />
-              Sincronizar
+              <span className="hidden sm:inline">Sincronizar</span>
             </Button>
             <Button 
               onClick={() => exportToSheet('transactions')} 
@@ -191,13 +194,14 @@ const Financeiro = () => {
               className="flex gap-2 items-center"
             >
               <Download size={16} />
-              Exportar
+              <span className="hidden sm:inline">Exportar</span>
             </Button>
             <Dialog open={openAddDialog} onOpenChange={setOpenAddDialog}>
               <DialogTrigger asChild>
                 <Button className="flex gap-2 items-center">
                   <Plus size={16} />
-                  Nova Transação
+                  <span className="hidden sm:inline">Nova Transação</span>
+                  <span className="inline sm:hidden">Adicionar</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -515,89 +519,91 @@ const Financeiro = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Método</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="w-[100px]">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTransactions.length > 0 ? (
-                  filteredTransactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell>
-                        {formatDate(transaction.date)}
-                      </TableCell>
-                      <TableCell className="font-medium">{transaction.description}</TableCell>
-                      <TableCell>{transaction.customer || "—"}</TableCell>
-                      <TableCell>{transaction.category}</TableCell>
-                      <TableCell>{transaction.paymentMethod}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            transaction.status === 'completed' ? "outline" : 
-                            transaction.status === 'pending' ? "secondary" : 
-                            "destructive"
-                          }
-                        >
-                          {transaction.status === 'completed' ? 'Concluído' : 
-                           transaction.status === 'pending' ? 'Pendente' : 
-                           'Cancelado'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(transaction.amount)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            transaction.type === 'income' ? "success" : 
-                            transaction.type === 'refund' ? "secondary" : 
-                            "destructive"
-                          }
-                        >
-                          {transaction.type === 'income' ? 'Receita' : 
-                           transaction.type === 'refund' ? 'Reembolso' : 
-                           'Despesa'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(transaction)}
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead className="hidden md:table-cell">Método</TableHead>
+                    <TableHead className="hidden md:table-cell">Status</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead className="w-[100px]">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredTransactions.length > 0 ? (
+                    filteredTransactions.map((transaction) => (
+                      <TableRow key={transaction.id}>
+                        <TableCell>
+                          {formatDate(transaction.date)}
+                        </TableCell>
+                        <TableCell className="font-medium">{transaction.description}</TableCell>
+                        <TableCell>{transaction.customer || "—"}</TableCell>
+                        <TableCell>{transaction.category}</TableCell>
+                        <TableCell className="hidden md:table-cell">{transaction.paymentMethod}</TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <Badge
+                            variant={
+                              transaction.status === 'completed' ? "outline" : 
+                              transaction.status === 'pending' ? "secondary" : 
+                              "destructive"
+                            }
                           >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteTransaction(transaction.id)}
+                            {transaction.status === 'completed' ? 'Concluído' : 
+                             transaction.status === 'pending' ? 'Pendente' : 
+                             'Cancelado'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(transaction.amount)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              transaction.type === 'income' ? "success" : 
+                              transaction.type === 'refund' ? "secondary" : 
+                              "destructive"
+                            }
                           >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                            {transaction.type === 'income' ? 'Receita' : 
+                             transaction.type === 'refund' ? 'Reembolso' : 
+                             'Despesa'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(transaction)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteTransaction(transaction.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center">
+                        Nenhuma transação encontrada
                       </TableCell>
                     </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center">
-                      Nenhuma transação encontrada
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
         

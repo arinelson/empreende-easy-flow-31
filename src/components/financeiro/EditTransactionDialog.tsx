@@ -74,17 +74,17 @@ const EditTransactionDialog = ({
     
     if (customerId) {
       const customer = customers.find(c => c.id === customerId);
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         customerId,
         customer: customer?.name || ''
-      });
+      }));
     } else {
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         customerId: undefined,
         customer: undefined
-      });
+      }));
     }
   };
 
@@ -98,11 +98,11 @@ const EditTransactionDialog = ({
         return product?.name || '';
       });
       
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         productIds: newProducts,
         products: productNames
-      });
+      }));
     }
   };
 
@@ -115,11 +115,11 @@ const EditTransactionDialog = ({
       return product?.name || '';
     });
     
-    setFormData({
-      ...formData,
+    setFormData(prev => ({
+      ...prev,
       productIds: newProducts,
       products: productNames
-    });
+    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -137,6 +137,7 @@ const EditTransactionDialog = ({
             Atualize os campos para editar esta transação
           </DialogDescription>
         </DialogHeader>
+        
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
