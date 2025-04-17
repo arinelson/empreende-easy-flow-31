@@ -7,8 +7,8 @@ export const PASSWORD = "admin12345";
 // Google Sheets integration
 // Replace with your own API URLs
 export const FINANCEIRO_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzKGwnhnFtJo7brrYf-R_zfyu4-26TA7Qdl7hMlxBJHTUFJd8z5pERZo8jaF5p8-a7r/exec";
-export const CLIENTES_SCRIPT_URL = "https://script.google.com/macros/s/SEU-ID-DO-SCRIPT-CLIENTES-AQUI";
-export const OPERACOES_SCRIPT_URL = "https://script.google.com/macros/s/SEU-ID-DO-SCRIPT-OPERACOES-AQUI";
+export const CLIENTES_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbypjI9xWRJWWkUsq0AgKbV8O44REvoTKDLWfTbxkHeeEnNRaLND2nnc4rOEHSHl3-un/exec";
+export const OPERACOES_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz7bdWdeK156FCCuSsPQLtOrkDtrAPXLVg1NOoUNjBaV7Ab6tiX_0cHhtEuaQE1iLrc/exec";
 
 // Backward compatibility (using Financeiro script as default)
 export const SHEET_URL = FINANCEIRO_SCRIPT_URL;
