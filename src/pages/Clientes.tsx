@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { useData } from "@/contexts/DataContext";
@@ -9,15 +10,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatPhone } from "@/lib/formatters";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Download, MessageSquare, Plus, Search, Trash2 } from "lucide-react";
+import { Download, MessageSquare, Plus, RefreshCw, Search, Trash2, Edit } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Customer } from "@/types/models";
+import EditCustomerDialog from "@/components/clientes/EditCustomerDialog";
 
 const Clientes = () => {
-  const { customers, addCustomer, deleteCustomer, exportToSheet } = useData();
+  const { customers, addCustomer, updateCustomer, deleteCustomer, exportToSheet, syncWithSheet } = useData();
   const [searchQuery, setSearchQuery] = useState("");
   const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   
   // Form state with properly typed status
   const [formData, setFormData] = useState<Omit<Customer, "id">>({
@@ -30,6 +33,8 @@ const Clientes = () => {
     lastPurchase: "",
     notes: "",
     status: "active", // Explicitly use "active" as the initial value
+    document: "",
+    category: "regular"
   });
 
   // Handle form changes
@@ -50,6 +55,11 @@ const Clientes = () => {
       setFormData({ 
         ...formData, 
         [name]: value as "active" | "inactive"
+      });
+    } else if (name === "category") {
+      setFormData({ 
+        ...formData, 
+        [name]: value as "regular" | "vip" | "enterprise" | "new"
       });
     } else {
       setFormData({ ...formData, [name]: value });
@@ -76,7 +86,14 @@ const Clientes = () => {
       lastPurchase: "",
       notes: "",
       status: "active", // Explicitly use "active" as the initial value
+      document: "",
+      category: "regular"
     });
+  };
+
+  // Edit customer
+  const handleEdit = (customer: Customer) => {
+    setEditingCustomer(customer);
   };
 
   // Send WhatsApp message
@@ -90,7 +107,8 @@ const Clientes = () => {
   const filteredCustomers = customers.filter((customer) =>
     customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    customer.phone.includes(searchQuery)
+    customer.phone.includes(searchQuery) ||
+    (customer.document && customer.document.includes(searchQuery))
   );
 
   return (
@@ -105,6 +123,14 @@ const Clientes = () => {
           </div>
           
           <div className="flex gap-2">
+            <Button
+              onClick={() => syncWithSheet()}
+              variant="outline"
+              className="flex gap-2 items-center"
+            >
+              <RefreshCw size={16} />
+              Sincronizar
+            </Button>
             <Button 
               onClick={() => exportToSheet('customers')} 
               variant="outline" 
@@ -142,6 +168,7 @@ const Clientes = () => {
                         required
                       />
                     </div>
+                    
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="email" className="text-right">
                         Email
@@ -156,6 +183,7 @@ const Clientes = () => {
                         required
                       />
                     </div>
+                    
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="phone" className="text-right">
                         Telefone
@@ -169,6 +197,20 @@ const Clientes = () => {
                         required
                       />
                     </div>
+                    
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="document" className="text-right">
+                        CPF/CNPJ
+                      </Label>
+                      <Input
+                        id="document"
+                        name="document"
+                        className="col-span-3"
+                        value={formData.document}
+                        onChange={handleFormChange}
+                      />
+                    </div>
+                    
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="address" className="text-right">
                         Endereço
@@ -181,6 +223,7 @@ const Clientes = () => {
                         onChange={handleFormChange}
                       />
                     </div>
+                    
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="joinDate" className="text-right">
                         Data de Cadastro
@@ -195,6 +238,7 @@ const Clientes = () => {
                         required
                       />
                     </div>
+                    
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="totalPurchases" className="text-right">
                         Total de Compras
@@ -204,11 +248,47 @@ const Clientes = () => {
                         name="totalPurchases"
                         type="number"
                         min="0"
+                        step="0.01"
                         className="col-span-3"
                         value={formData.totalPurchases}
                         onChange={handleFormChange}
                       />
                     </div>
+                    
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="lastPurchase" className="text-right">
+                        Última Compra
+                      </Label>
+                      <Input
+                        id="lastPurchase"
+                        name="lastPurchase"
+                        type="date"
+                        className="col-span-3"
+                        value={formData.lastPurchase || ""}
+                        onChange={handleFormChange}
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="category" className="text-right">
+                        Categoria
+                      </Label>
+                      <Select 
+                        value={formData.category} 
+                        onValueChange={(value) => handleSelectChange("category", value)}
+                      >
+                        <SelectTrigger className="col-span-3">
+                          <SelectValue placeholder="Selecione a categoria" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="regular">Regular</SelectItem>
+                          <SelectItem value="vip">VIP</SelectItem>
+                          <SelectItem value="enterprise">Empresa</SelectItem>
+                          <SelectItem value="new">Novo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="status" className="text-right">
                         Status
@@ -226,15 +306,16 @@ const Clientes = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="notes" className="text-right">
+                    
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label htmlFor="notes" className="text-right pt-2">
                         Observações
                       </Label>
                       <Textarea
                         id="notes"
                         name="notes"
                         className="col-span-3"
-                        value={formData.notes}
+                        value={formData.notes || ""}
                         onChange={handleFormChange}
                       />
                     </div>
@@ -256,7 +337,7 @@ const Clientes = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
               <div className="flex flex-col gap-2">
                 <div className="text-sm text-muted-foreground">Total de Clientes</div>
                 <div className="text-2xl font-bold">{customers.length}</div>
@@ -271,6 +352,12 @@ const Clientes = () => {
                 <div className="text-sm text-muted-foreground">Clientes Inativos</div>
                 <div className="text-2xl font-bold text-destructive">
                   {customers.filter(c => c.status === 'inactive').length}
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <div className="text-sm text-muted-foreground">Clientes VIP</div>
+                <div className="text-2xl font-bold text-primary">
+                  {customers.filter(c => c.category === 'vip').length}
                 </div>
               </div>
             </div>
@@ -302,6 +389,7 @@ const Clientes = () => {
                   <TableHead>Contato</TableHead>
                   <TableHead>Data de Cadastro</TableHead>
                   <TableHead>Total de Compras</TableHead>
+                  <TableHead>Categoria</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Ações</TableHead>
                 </TableRow>
@@ -316,7 +404,14 @@ const Clientes = () => {
                         <div className="text-muted-foreground">{formatPhone(customer.phone)}</div>
                       </TableCell>
                       <TableCell>{formatDate(customer.joinDate)}</TableCell>
-                      <TableCell>{customer.totalPurchases}</TableCell>
+                      <TableCell>{customer.totalPurchases > 0 ? formatCurrency(customer.totalPurchases) : "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {customer.category === 'regular' ? 'Regular' : 
+                           customer.category === 'vip' ? 'VIP' : 
+                           customer.category === 'enterprise' ? 'Empresa' : 'Novo'}
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         <Badge
                           variant={customer.status === 'active' ? "success" : "destructive"}
@@ -326,6 +421,14 @@ const Clientes = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(customer)}
+                            title="Editar cliente"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -348,7 +451,7 @@ const Clientes = () => {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">
+                    <TableCell colSpan={7} className="text-center">
                       Nenhum cliente encontrado
                     </TableCell>
                   </TableRow>
@@ -357,6 +460,16 @@ const Clientes = () => {
             </Table>
           </CardContent>
         </Card>
+        
+        {/* Edit Customer Dialog */}
+        {editingCustomer && (
+          <EditCustomerDialog
+            customer={editingCustomer}
+            open={!!editingCustomer}
+            onOpenChange={(open) => !open && setEditingCustomer(null)}
+            onUpdate={updateCustomer}
+          />
+        )}
       </div>
     </PageLayout>
   );

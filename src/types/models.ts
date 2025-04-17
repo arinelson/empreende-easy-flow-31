@@ -21,9 +21,17 @@ export interface FinancialTransaction {
   date: string;
   description: string;
   amount: number;
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'refund';
   category: string;
   paymentMethod?: string;
+  customer?: string;
+  customerId?: string;
+  products?: string[];
+  productIds?: string[];
+  status?: 'pending' | 'completed' | 'canceled';
+  notes?: string;
+  isRefundable?: boolean;
+  relatedTransactionId?: string;
 }
 
 export interface Customer {
@@ -37,6 +45,8 @@ export interface Customer {
   lastPurchase?: string;
   notes?: string;
   status: 'active' | 'inactive';
+  document?: string; // CPF/CNPJ
+  category?: 'regular' | 'vip' | 'enterprise' | 'new';
 }
 
 export interface Product {
@@ -49,6 +59,8 @@ export interface Product {
   category: string;
   minimumStock?: number;
   supplier?: string;
+  barcode?: string;
+  createdAt?: string;
 }
 
 export interface Supplier {
@@ -59,6 +71,8 @@ export interface Supplier {
   phone: string;
   address?: string;
   products?: string[];
+  document?: string; // CNPJ
+  category?: string;
 }
 
 // Dashboard types
