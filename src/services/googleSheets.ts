@@ -9,9 +9,9 @@ import { toast } from "sonner";
  */
 
 // URL base para cada planilha (configurada pelo usuário)
-export const FINANCEIRO_SHEET_URL = "https://script.google.com/macros/s/AKfycbzTbxsxRu_Eic9g1m45GJ_8Eaor4tfDatSNl--35JsRG-hofoLrTL9mceBPwwdkOPzf-w/exec";
-export const CLIENTES_SHEET_URL = "https://script.google.com/macros/s/AKfycbxeYUHqpJgxlU6nm-3-QhqGVrMV-n2kSgByA9irFaYQIcVMeiibx3JmPVPiKSPgl60d/exec";
-export const OPERACOES_SHEET_URL = "https://script.google.com/macros/s/AKfycbz1Fuf9wn60aquimAsgEMDR-NUcBBJQn4EHPoxhOSov9gvQSlmr3tDQNWJwCKNubNEIDQ/exec";
+export const FINANCEIRO_SHEET_URL = "https://docs.google.com/spreadsheets/d/1nOj6f8jrx5P10KcNDhkJxnd0303J3ktT5SE3-ie4wjM/edit?gid=0#gid=0";
+export const CLIENTES_SHEET_URL = "https://docs.google.com/spreadsheets/d/1ivmrRgpduYwyV9kXc3jpj9TdjMGAgwGo8akhiWimOzc/edit?gid=0#gid=0";
+export const OPERACOES_SHEET_URL = "https://docs.google.com/spreadsheets/d/1zMwckW0sLR03lJ89rKQvHRQnjj-JEjVcinztAit6Zi4/edit?gid=0#gid=0";
 
 // Sistema de log para rastrear operações com Google Sheets
 export const syncLog = {
