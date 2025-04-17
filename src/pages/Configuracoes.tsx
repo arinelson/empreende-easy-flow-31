@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useData } from "@/contexts/DataContext";
@@ -8,11 +8,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { SHEET_URL } from "@/types/models";
+import { 
+  FINANCEIRO_SCRIPT_URL, 
+  CLIENTES_SCRIPT_URL, 
+  OPERACOES_SCRIPT_URL,
+  SHEET_URL 
+} from "@/types/models";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RefreshCcw, Save, Trash2 } from "lucide-react";
+import { 
+  FINANCEIRO_SHEET_URL, 
+  CLIENTES_SHEET_URL, 
+  OPERACOES_SHEET_URL, 
+  updateScriptUrls 
+} from "@/services/googleSheets";
+import { toast } from "sonner";
 
 const Configuracoes = () => {
   const { theme, setTheme } = useTheme();
@@ -20,9 +32,33 @@ const Configuracoes = () => {
   const { user } = useAuth();
   
   // Form state
-  const [sheetUrl, setSheetUrl] = useState(SHEET_URL);
+  const [financeiroUrl, setFinanceiroUrl] = useState(FINANCEIRO_SHEET_URL);
+  const [clientesUrl, setClientesUrl] = useState(CLIENTES_SHEET_URL);
+  const [operacoesUrl, setOperacoesUrl] = useState(OPERACOES_SHEET_URL);
+  
+  const [financeiroScriptUrl, setFinanceiroScriptUrl] = useState(FINANCEIRO_SCRIPT_URL);
+  const [clientesScriptUrl, setClientesScriptUrl] = useState(CLIENTES_SCRIPT_URL);
+  const [operacoesScriptUrl, setOperacoesScriptUrl] = useState(OPERACOES_SCRIPT_URL);
+  
   const [username, setUsername] = useState(user?.username || "");
   const [avatar, setAvatar] = useState(user?.avatar || "");
+  
+  const saveIntegrationSettings = () => {
+    try {
+      updateScriptUrls(
+        financeiroScriptUrl, 
+        clientesScriptUrl, 
+        operacoesScriptUrl,
+        financeiroUrl,
+        clientesUrl,
+        operacoesUrl
+      );
+      toast.success("Configurações de integração salvas com sucesso!");
+    } catch (error) {
+      console.error("Erro ao salvar configurações:", error);
+      toast.error("Erro ao salvar configurações. Verifique o console para mais detalhes.");
+    }
+  };
   
   return (
     <PageLayout>
@@ -174,33 +210,105 @@ const Configuracoes = () => {
                   Configure integrações com serviços externos
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="sheet-url">URL da Planilha Google</Label>
-                  <Input 
-                    id="sheet-url" 
-                    value={sheetUrl} 
-                    onChange={(e) => setSheetUrl(e.target.value)} 
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    URL da API do Google Apps Script para integração com Google Sheets
-                  </p>
-                </div>
-                
-                <div className="grid gap-2">
-                  <h3 className="font-semibold">Instruções de Integração</h3>
-                  <ol className="list-decimal pl-5 space-y-2 text-sm">
-                    <li>Crie uma planilha no Google Sheets</li>
-                    <li>Adicione abas para cada módulo: Financeiro, Clientes, Produtos</li>
-                    <li>No menu, vá em Extensões &gt; Apps Script</li>
-                    <li>Crie uma API Web configurando um doGet e doPost</li>
-                    <li>Implante como aplicativo web e copie a URL</li>
-                    <li>Cole a URL no campo acima</li>
-                  </ol>
+              <CardContent className="space-y-6">
+                <div className="grid gap-6">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">URLs das Planilhas Google</h3>
+                    <div className="space-y-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="financeiro-sheet-url">URL da Planilha Financeiro</Label>
+                        <Input 
+                          id="financeiro-sheet-url" 
+                          value={financeiroUrl} 
+                          onChange={(e) => setFinanceiroUrl(e.target.value)} 
+                          placeholder="https://docs.google.com/spreadsheets/d/..."
+                        />
+                      </div>
+                      
+                      <div className="grid gap-2">
+                        <Label htmlFor="clientes-sheet-url">URL da Planilha Clientes</Label>
+                        <Input 
+                          id="clientes-sheet-url" 
+                          value={clientesUrl} 
+                          onChange={(e) => setClientesUrl(e.target.value)} 
+                          placeholder="https://docs.google.com/spreadsheets/d/..."
+                        />
+                      </div>
+                      
+                      <div className="grid gap-2">
+                        <Label htmlFor="operacoes-sheet-url">URL da Planilha Operações</Label>
+                        <Input 
+                          id="operacoes-sheet-url" 
+                          value={operacoesUrl} 
+                          onChange={(e) => setOperacoesUrl(e.target.value)} 
+                          placeholder="https://docs.google.com/spreadsheets/d/..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">URLs dos Scripts Google Apps</h3>
+                    <div className="space-y-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="financeiro-script-url">URL do Script Financeiro</Label>
+                        <Input 
+                          id="financeiro-script-url" 
+                          value={financeiroScriptUrl} 
+                          onChange={(e) => setFinanceiroScriptUrl(e.target.value)} 
+                          placeholder="https://script.google.com/macros/s/..."
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          URL da API do Script para a planilha Financeiro
+                        </p>
+                      </div>
+                      
+                      <div className="grid gap-2">
+                        <Label htmlFor="clientes-script-url">URL do Script Clientes</Label>
+                        <Input 
+                          id="clientes-script-url" 
+                          value={clientesScriptUrl} 
+                          onChange={(e) => setClientesScriptUrl(e.target.value)} 
+                          placeholder="https://script.google.com/macros/s/..."
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          URL da API do Script para a planilha Clientes
+                        </p>
+                      </div>
+                      
+                      <div className="grid gap-2">
+                        <Label htmlFor="operacoes-script-url">URL do Script Operações</Label>
+                        <Input 
+                          id="operacoes-script-url" 
+                          value={operacoesScriptUrl} 
+                          onChange={(e) => setOperacoesScriptUrl(e.target.value)} 
+                          placeholder="https://script.google.com/macros/s/..."
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          URL da API do Script para a planilha Operações
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    <h3 className="font-semibold">Instruções de Integração</h3>
+                    <ol className="list-decimal pl-5 space-y-2 text-sm">
+                      <li>Crie três planilhas separadas no Google Sheets: Financeiro, Clientes e Operações</li>
+                      <li>Para cada planilha, vá em Extensões &gt; Apps Script</li>
+                      <li>Cole o código de script correspondente (disponível na documentação)</li>
+                      <li>Implante cada script como aplicativo web (Execute como: Você / Quem tem acesso: Qualquer pessoa)</li>
+                      <li>Copie as URLs geradas e cole nos campos acima</li>
+                      <li>Salve as configurações para atualizar o sistema</li>
+                    </ol>
+                  </div>
                 </div>
               </CardContent>
               <CardFooter>
-                <Button className="flex items-center gap-2">
+                <Button 
+                  className="flex items-center gap-2"
+                  onClick={saveIntegrationSettings}
+                >
                   <Save className="h-4 w-4" />
                   Salvar Configurações
                 </Button>

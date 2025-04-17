@@ -23,7 +23,8 @@ import {
   exportCustomersToSheet,
   exportProductsToSheet,
   importFromGoogleSheets,
-  syncLog
+  syncLog,
+  getScriptUrl
 } from "@/services/googleSheets";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
@@ -226,6 +227,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       toast.info("Sincronizando com Google Sheets...");
       
+      const financeiroUrl = getScriptUrl('financeiro');
+      const clientesUrl = getScriptUrl('clientes');
+      const operacoesUrl = getScriptUrl('operacoes');
+      
+      if (!financeiroUrl || !clientesUrl || !operacoesUrl) {
+        throw new Error("URLs dos scripts não configuradas. Configure-as em Configurações > Integrações.");
+      }
+      
       let success = false;
       let attempts = 0;
       const maxAttempts = 3;
@@ -266,7 +275,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("Erro ao sincronizar com Google Sheets:", error);
-      toast.error("Erro ao sincronizar com Google Sheets. Verifique os logs para mais detalhes.");
+      toast.error(`Erro ao sincronizar com Google Sheets: ${error instanceof Error ? error.message : 'Verifique as configurações de integração'}`);
     } finally {
       setIsLoading(false);
     }

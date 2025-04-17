@@ -1,12 +1,16 @@
-
 // Login credentials
 // Use environment variables in production
 export const USER = "admin";
 export const PASSWORD = "admin12345";
 
 // Google Sheets integration
-// Replace with your own API URL
-export const SHEET_URL = "https://script.google.com/macros/s/SEU-ID-DO-SCRIPT-AQUI";
+// Replace with your own API URLs
+export const FINANCEIRO_SCRIPT_URL = "https://script.google.com/macros/s/SEU-ID-DO-SCRIPT-FINANCEIRO-AQUI";
+export const CLIENTES_SCRIPT_URL = "https://script.google.com/macros/s/SEU-ID-DO-SCRIPT-CLIENTES-AQUI";
+export const OPERACOES_SCRIPT_URL = "https://script.google.com/macros/s/SEU-ID-DO-SCRIPT-OPERACOES-AQUI";
+
+// Backward compatibility (using Financeiro script as default)
+export const SHEET_URL = FINANCEIRO_SCRIPT_URL;
 
 // Types for various data models
 
