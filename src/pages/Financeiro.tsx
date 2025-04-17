@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Download, Plus, Search, Trash2, Edit, RefreshCw } from "lucide-react";
+import { Download, Plus, Search, Trash2, Edit, RefreshCw, X } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { FinancialTransaction } from "@/types/models";
