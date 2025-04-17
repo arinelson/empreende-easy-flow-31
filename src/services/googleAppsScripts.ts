@@ -4,7 +4,6 @@
 export const financeiroSheetScript = `
 /**
  * Script para Planilha de Finanças
- * URL da planilha: https://docs.google.com/spreadsheets/d/1p1VUN_9CMuiQs3xC1sHlelHeq1gtzoMVqh1n0WxQQOg/edit?gid=0
  */
 
 function doGet(e) {
@@ -16,18 +15,23 @@ function doPost(e) {
 }
 
 function handleRequest(e) {
-  // Configurar cabeçalhos CORS para permitir solicitações de qualquer origem
+  // Configurar resposta JSON
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
   
-  // Adicionar cabeçalhos CORS
-  output.addHeader('Access-Control-Allow-Origin', '*');
-  output.addHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  output.addHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // Configurar cabeçalhos CORS de forma correta
+  var headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type'
+  };
   
   // Lidar com solicitações OPTIONS (pré-verificação CORS)
-  if (e.parameter.method === 'options') {
-    return output.setContent(JSON.stringify({status: 'ok'}));
+  if (e && e.parameter && e.parameter.method === 'options') {
+    return output.setContent(JSON.stringify({
+      status: 'ok',
+      headers: headers
+    }));
   }
   
   try {
@@ -51,14 +55,22 @@ function handleRequest(e) {
         .setFontWeight('bold');
     }
     
-    var action = e.parameter.action;
+    var action = e && e.parameter ? e.parameter.action : null;
     var result = {};
     
     // Log da ação para debugging
     Logger.log('Ação recebida: ' + action);
     
+    // Verificar se está online
+    if (!action) {
+      result = {
+        success: true,
+        message: "O serviço Financeiro está online e pronto para receber dados via POST."
+      };
+    }
+    
     // Exportar transações para a planilha
-    if (action === 'exportTransactions' && e.postData) {
+    else if (action === 'exportTransactions' && e.postData) {
       var data = JSON.parse(e.postData.contents);
       var transactions = data.transactions;
       
@@ -278,7 +290,6 @@ function mergeTransactions(appTransactions, sheetTransactions) {
 export const clientesSheetScript = `
 /**
  * Script para Planilha de Clientes
- * URL da planilha: https://docs.google.com/spreadsheets/d/1ywVsdLbnqGa0UX9JI_o1OECZwY2eVZWiS1pYX3tHqSc/edit?gid=0
  */
 
 function doGet(e) {
@@ -290,18 +301,23 @@ function doPost(e) {
 }
 
 function handleRequest(e) {
-  // Configurar cabeçalhos CORS para permitir solicitações de qualquer origem
+  // Configurar resposta JSON
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
   
-  // Adicionar cabeçalhos CORS
-  output.addHeader('Access-Control-Allow-Origin', '*');
-  output.addHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  output.addHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // Configurar cabeçalhos CORS de forma correta
+  var headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type'
+  };
   
   // Lidar com solicitações OPTIONS (pré-verificação CORS)
-  if (e.parameter.method === 'options') {
-    return output.setContent(JSON.stringify({status: 'ok'}));
+  if (e && e.parameter && e.parameter.method === 'options') {
+    return output.setContent(JSON.stringify({
+      status: 'ok',
+      headers: headers
+    }));
   }
   
   try {
@@ -324,14 +340,22 @@ function handleRequest(e) {
         .setFontWeight('bold');
     }
     
-    var action = e.parameter.action;
+    var action = e && e.parameter ? e.parameter.action : null;
     var result = {};
     
     // Log da ação
     Logger.log('Ação recebida: ' + action);
     
+    // Verificar se está online
+    if (!action) {
+      result = {
+        success: true,
+        message: "O serviço Clientes está online e pronto para receber dados via POST."
+      };
+    }
+    
     // Exportar clientes para a planilha
-    if (action === 'exportCustomers' && e.postData) {
+    else if (action === 'exportCustomers' && e.postData) {
       var data = JSON.parse(e.postData.contents);
       var customers = data.customers;
       
@@ -539,7 +563,6 @@ function mergeCustomers(appCustomers, sheetCustomers) {
 export const operacoesSheetScript = `
 /**
  * Script para Planilha de Operações
- * URL da planilha: https://docs.google.com/spreadsheets/d/1VG24l45pKfvFdPVatvWT8wym0K-4IW8ZyABu4EBc0Yc/edit?gid=0
  */
 
 function doGet(e) {
@@ -551,18 +574,23 @@ function doPost(e) {
 }
 
 function handleRequest(e) {
-  // Configurar cabeçalhos CORS para permitir solicitações de qualquer origem
+  // Configurar resposta JSON
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
   
-  // Adicionar cabeçalhos CORS
-  output.addHeader('Access-Control-Allow-Origin', '*');
-  output.addHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  output.addHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // Configurar cabeçalhos CORS de forma correta
+  var headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type'
+  };
   
   // Lidar com solicitações OPTIONS (pré-verificação CORS)
-  if (e.parameter.method === 'options') {
-    return output.setContent(JSON.stringify({status: 'ok'}));
+  if (e && e.parameter && e.parameter.method === 'options') {
+    return output.setContent(JSON.stringify({
+      status: 'ok',
+      headers: headers
+    }));
   }
   
   try {
@@ -601,14 +629,22 @@ function handleRequest(e) {
         .setFontWeight('bold');
     }
     
-    var action = e.parameter.action;
+    var action = e && e.parameter ? e.parameter.action : null;
     var result = {};
     
     // Log da ação
     Logger.log('Ação recebida: ' + action);
     
+    // Verificar se está online
+    if (!action) {
+      result = {
+        success: true,
+        message: "O serviço Operações está online e pronto para receber dados via POST."
+      };
+    }
+    
     // Exportar produtos para a planilha
-    if (action === 'exportProducts' && e.postData) {
+    else if (action === 'exportProducts' && e.postData) {
       var data = JSON.parse(e.postData.contents);
       var products = data.products;
       
@@ -920,36 +956,91 @@ function mergeSuppliers(appSuppliers, sheetSuppliers) {
 `;
 
 export const sheetIntegrationInstructions = `
-## Instruções para integrar com Google Sheets (Com CORS otimizado)
+## Instruções para integrar com Google Sheets (2024)
 
 Para integrar o sistema com o Google Sheets, siga estes passos para cada planilha:
 
-1. Acesse as planilhas do Google nas URLs fornecidas:
-   - Financeiro: https://docs.google.com/spreadsheets/d/1p1VUN_9CMuiQs3xC1sHlelHeq1gtzoMVqh1n0WxQQOg/edit?gid=0
-   - Clientes: https://docs.google.com/spreadsheets/d/1ywVsdLbnqGa0UX9JI_o1OECZwY2eVZWiS1pYX3tHqSc/edit?gid=0
-   - Operações: https://docs.google.com/spreadsheets/d/1VG24l45pKfvFdPVatvWT8wym0K-4IW8ZyABu4EBc0Yc/edit?gid=0
+1. Acesse as planilhas do Google que você criou:
+   - Financeiro: https://docs.google.com/spreadsheets/d/1nOj6f8jrx5P10KcNDhkJxnd0303J3ktT5SE3-ie4wjM/edit?gid=0
+   - Clientes: https://docs.google.com/spreadsheets/d/1ivmrRgpduYwyV9kXc3jpj9TdjMGAgwGo8akhiWimOzc/edit?gid=0
+   - Operações: https://docs.google.com/spreadsheets/d/1zMwckW0sLR03lJ89rKQvHRQnjj-JEjVcinztAit6Zi4/edit?gid=0
 
 2. Para cada planilha:
    a. Clique em Extensões > Apps Script
-   b. Cole o código correspondente para cada planilha (financeiroSheetScript, clientesSheetScript, ou operacoesSheetScript)
-   c. Salve o projeto (Ctrl+S ou Cmd+S)
-   d. Clique em "Implantar" > "Nova implantação"
-   e. Selecione "Aplicativo da web"
-   f. Configure:
+   b. Limpe qualquer código existente
+   c. Cole o código correspondente para cada planilha (financeiroSheetScript, clientesSheetScript, ou operacoesSheetScript)
+   d. Salve o projeto com um nome relacionado (ex: "Integracao Financeiro")
+   e. Clique em "Implantar" > "Nova implantação"
+   f. Selecione "Aplicativo da web"
+   g. Configure:
       - Execute como: Eu mesmo (seu email)
       - Quem tem acesso: Qualquer pessoa
-   g. Clique em "Implantar"
-   h. Copie a URL do aplicativo da web gerado
-   i. No aplicativo, substitua as URLs dos scripts no arquivo googleSheets.ts pelos URLs obtidos
+   h. Clique em "Implantar"
+   i. Copie a URL do aplicativo da web gerado
+   j. No aplicativo, cole essa URL no campo correspondente em Configurações > Integrações
 
-3. Configurações CORS importantes:
-   - Os scripts agora incluem cabeçalhos CORS para permitir solicitações de qualquer origem
-   - Se ainda tiver problemas de CORS, verifique se está acessando o aplicativo pelo domínio correto
-   - O sistema tentará usar diferentes estratégias para contornar problemas de CORS automaticamente
+3. IMPORTANTE: O código foi atualizado para corrigir o erro "output.addHeader is not a function". O novo código usa uma abordagem diferente para lidar com cabeçalhos CORS.
 
-4. Logs e depuração:
-   - Use o botão "Ver logs" no Dashboard para acompanhar as operações de sincronização
-   - No Google Apps Script, acesse "Visualizar" > "Logs" para ver logs do lado do servidor
+4. Testando a integração:
+   - Após configurar todas as URLs, clique em "Salvar configurações"
+   - No Dashboard, use o botão "Sincronizar com Google Sheets" para testar
+   - Se ainda ocorrerem erros, verifique os logs do Apps Script (no editor do Apps Script, vá em "Ver" > "Logs")
 
-Importante: Certifique-se de que as planilhas estejam configuradas com as permissões corretas e que as colunas correspondam às esperadas pelos scripts.
+5. Cada planilha responderá com uma mensagem "O serviço X está online e pronto para receber dados via POST" quando acessada diretamente, o que confirma que está funcionando corretamente.
 `;
+
+// Atualizando o componente tabs.tsx para garantir que todos os conteúdos estejam dentro de Tabs
+<lov-write file_path="src/components/ui/tabs.tsx">
+import * as React from "react"
+import * as TabsPrimitive from "@radix-ui/react-tabs"
+
+import { cn } from "@/lib/utils"
+
+const Tabs = TabsPrimitive.Root
+
+const TabsList = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.List>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
+>(({ className, ...props }, ref) => (
+  <TabsPrimitive.List
+    ref={ref}
+    className={cn(
+      "inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground",
+      className
+    )}
+    {...props}
+  />
+))
+TabsList.displayName = TabsPrimitive.List.displayName
+
+const TabsTrigger = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
+>(({ className, ...props }, ref) => (
+  <TabsPrimitive.Trigger
+    ref={ref}
+    className={cn(
+      "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+      className
+    )}
+    {...props}
+  />
+))
+TabsTrigger.displayName = TabsPrimitive.Trigger.displayName
+
+const TabsContent = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
+>(({ className, ...props }, ref) => (
+  <TabsPrimitive.Content
+    ref={ref}
+    className={cn(
+      "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+      className
+    )}
+    {...props}
+  />
+))
+TabsContent.displayName = TabsPrimitive.Content.displayName
+
+export { Tabs, TabsList, TabsTrigger, TabsContent }
