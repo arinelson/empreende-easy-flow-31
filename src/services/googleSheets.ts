@@ -1,3 +1,4 @@
+
 import { 
   FinancialTransaction, 
   Customer, 
@@ -233,7 +234,16 @@ export async function syncWithGoogleSheets(
 
 export async function exportTransactionsToSheet(transactions: FinancialTransaction[]): Promise<void> {
   const url = getScriptUrl('financeiro');
+  
+  // Verificar se a URL está configurada
+  if (!url || url === FINANCEIRO_SCRIPT_URL) {
+    syncLog.addLog("Exportar Transações", "error", "URL do script para Financeiro não configurada");
+    throw new Error("URL do script para Financeiro não configurada. Configure-a em Configurações > Integrações.");
+  }
+  
   try {
+    syncLog.addLog("Exportar Transações", "info", `Enviando ${transactions.length} transações para o Google Sheets`);
+    
     const response = await fetch(url + '?action=exportTransactions', {
       method: 'POST',
       mode: 'cors',
@@ -251,8 +261,8 @@ export async function exportTransactionsToSheet(transactions: FinancialTransacti
     
     const data = await response.json();
     if (!data.success) {
-      syncLog.addLog("Exportar Transações", "error", `Erro no script: ${data.error}`);
-      throw new Error(`Erro no script: ${data.error}`);
+      syncLog.addLog("Exportar Transações", "error", `Erro no script: ${data.error || 'Erro desconhecido'}`);
+      throw new Error(`Erro no script: ${data.error || 'Erro desconhecido'}`);
     }
     
     syncLog.addLog("Exportar Transações", "success", "Transações exportadas com sucesso");
@@ -268,7 +278,16 @@ export async function exportTransactionsToSheet(transactions: FinancialTransacti
 
 export async function exportCustomersToSheet(customers: Customer[]): Promise<void> {
   const url = getScriptUrl('clientes');
+  
+  // Verificar se a URL está configurada
+  if (!url || url === CLIENTES_SCRIPT_URL) {
+    syncLog.addLog("Exportar Clientes", "error", "URL do script para Clientes não configurada");
+    throw new Error("URL do script para Clientes não configurada. Configure-a em Configurações > Integrações.");
+  }
+  
   try {
+    syncLog.addLog("Exportar Clientes", "info", `Enviando ${customers.length} clientes para o Google Sheets`);
+    
     const response = await fetch(url + '?action=exportCustomers', {
       method: 'POST',
       mode: 'cors',
@@ -286,8 +305,8 @@ export async function exportCustomersToSheet(customers: Customer[]): Promise<voi
     
     const data = await response.json();
     if (!data.success) {
-      syncLog.addLog("Exportar Clientes", "error", `Erro no script: ${data.error}`);
-      throw new Error(`Erro no script: ${data.error}`);
+      syncLog.addLog("Exportar Clientes", "error", `Erro no script: ${data.error || 'Erro desconhecido'}`);
+      throw new Error(`Erro no script: ${data.error || 'Erro desconhecido'}`);
     }
     
     syncLog.addLog("Exportar Clientes", "success", "Clientes exportados com sucesso");
@@ -303,7 +322,16 @@ export async function exportCustomersToSheet(customers: Customer[]): Promise<voi
 
 export async function exportProductsToSheet(products: Product[]): Promise<void> {
   const url = getScriptUrl('operacoes');
+  
+  // Verificar se a URL está configurada
+  if (!url || url === OPERACOES_SCRIPT_URL) {
+    syncLog.addLog("Exportar Produtos", "error", "URL do script para Operações não configurada");
+    throw new Error("URL do script para Operações não configurada. Configure-a em Configurações > Integrações.");
+  }
+  
   try {
+    syncLog.addLog("Exportar Produtos", "info", `Enviando ${products.length} produtos para o Google Sheets`);
+    
     const response = await fetch(url + '?action=exportProducts', {
       method: 'POST',
       mode: 'cors',
@@ -321,8 +349,8 @@ export async function exportProductsToSheet(products: Product[]): Promise<void> 
     
     const data = await response.json();
     if (!data.success) {
-      syncLog.addLog("Exportar Produtos", "error", `Erro no script: ${data.error}`);
-      throw new Error(`Erro no script: ${data.error}`);
+      syncLog.addLog("Exportar Produtos", "error", `Erro no script: ${data.error || 'Erro desconhecido'}`);
+      throw new Error(`Erro no script: ${data.error || 'Erro desconhecido'}`);
     }
     
     syncLog.addLog("Exportar Produtos", "success", "Produtos exportados com sucesso");
@@ -343,6 +371,21 @@ export async function importFromGoogleSheets(): Promise<{
   suppliers: Supplier[];
 } | null> {
   try {
+    syncLog.addLog("Importar Dados", "info", "Iniciando importação de dados do Google Sheets");
+    
+    // Verificar se as URLs estão configuradas
+    const financeiroUrl = getScriptUrl('financeiro');
+    const clientesUrl = getScriptUrl('clientes');
+    const operacoesUrl = getScriptUrl('operacoes');
+    
+    if (!financeiroUrl || !clientesUrl || !operacoesUrl || 
+        financeiroUrl === FINANCEIRO_SCRIPT_URL || 
+        clientesUrl === CLIENTES_SCRIPT_URL || 
+        operacoesUrl === OPERACOES_SCRIPT_URL) {
+      syncLog.addLog("Importar Dados", "error", "URLs dos scripts não configuradas");
+      throw new Error("URLs dos scripts não configuradas. Configure-as em Configurações > Integrações.");
+    }
+    
     // Importar transações
     const transactions = await importTransactionsFromSheet();
     
@@ -370,6 +413,8 @@ export async function importFromGoogleSheets(): Promise<{
 async function importTransactionsFromSheet(): Promise<FinancialTransaction[]> {
   const url = getScriptUrl('financeiro');
   try {
+    syncLog.addLog("Importar Transações", "info", "Iniciando importação de transações");
+    
     const response = await fetch(url + '?action=importTransactions', {
       method: 'GET',
       mode: 'cors',
@@ -386,11 +431,12 @@ async function importTransactionsFromSheet(): Promise<FinancialTransaction[]> {
     
     const data = await response.json();
     if (!data.success) {
-      syncLog.addLog("Importar Transações", "error", `Erro no script: ${data.error}`);
-      throw new Error(`Erro no script: ${data.error}`);
+      syncLog.addLog("Importar Transações", "error", `Erro no script: ${data.error || 'Erro desconhecido'}`);
+      throw new Error(`Erro no script: ${data.error || 'Erro desconhecido'}`);
     }
     
-    syncLog.addLog("Importar Transações", "success", "Transações importadas com sucesso");
+    const count = data.data ? data.data.length : 0;
+    syncLog.addLog("Importar Transações", "success", `${count} transações importadas com sucesso`);
     return data.data || [];
   } catch (error: any) {
     syncLog.addLog("Importar Transações", "error", `Erro ao importar transações: ${error.message || error.toString()}`);
@@ -402,6 +448,8 @@ async function importTransactionsFromSheet(): Promise<FinancialTransaction[]> {
 async function importCustomersFromSheet(): Promise<Customer[]> {
   const url = getScriptUrl('clientes');
   try {
+    syncLog.addLog("Importar Clientes", "info", "Iniciando importação de clientes");
+    
     const response = await fetch(url + '?action=importCustomers', {
       method: 'GET',
       mode: 'cors',
@@ -418,11 +466,12 @@ async function importCustomersFromSheet(): Promise<Customer[]> {
     
     const data = await response.json();
     if (!data.success) {
-      syncLog.addLog("Importar Clientes", "error", `Erro no script: ${data.error}`);
-      throw new Error(`Erro no script: ${data.error}`);
+      syncLog.addLog("Importar Clientes", "error", `Erro no script: ${data.error || 'Erro desconhecido'}`);
+      throw new Error(`Erro no script: ${data.error || 'Erro desconhecido'}`);
     }
     
-    syncLog.addLog("Importar Clientes", "success", "Clientes importados com sucesso");
+    const count = data.data ? data.data.length : 0;
+    syncLog.addLog("Importar Clientes", "success", `${count} clientes importados com sucesso`);
     return data.data || [];
   } catch (error: any) {
     syncLog.addLog("Importar Clientes", "error", `Erro ao importar clientes: ${error.message || error.toString()}`);
@@ -434,6 +483,8 @@ async function importCustomersFromSheet(): Promise<Customer[]> {
 async function importOperationsFromSheet(): Promise<{ products: Product[]; suppliers: Supplier[]; }> {
   const url = getScriptUrl('operacoes');
   try {
+    syncLog.addLog("Importar Operações", "info", "Iniciando importação de produtos e fornecedores");
+    
     const response = await fetch(url + '?action=importOperations', {
       method: 'GET',
       mode: 'cors',
@@ -450,11 +501,14 @@ async function importOperationsFromSheet(): Promise<{ products: Product[]; suppl
     
     const data = await response.json();
     if (!data.success) {
-      syncLog.addLog("Importar Operações", "error", `Erro no script: ${data.error}`);
-      throw new Error(`Erro no script: ${data.error}`);
+      syncLog.addLog("Importar Operações", "error", `Erro no script: ${data.error || 'Erro desconhecido'}`);
+      throw new Error(`Erro no script: ${data.error || 'Erro desconhecido'}`);
     }
     
-    syncLog.addLog("Importar Operações", "success", "Operações importadas com sucesso");
+    const productsCount = data.data?.products ? data.data.products.length : 0;
+    const suppliersCount = data.data?.suppliers ? data.data.suppliers.length : 0;
+    syncLog.addLog("Importar Operações", "success", `${productsCount} produtos e ${suppliersCount} fornecedores importados com sucesso`);
+    
     return {
       products: data.data?.products || [],
       suppliers: data.data?.suppliers || []

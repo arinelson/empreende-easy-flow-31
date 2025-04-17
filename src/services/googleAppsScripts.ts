@@ -15,23 +15,18 @@ function doPost(e) {
 }
 
 function handleRequest(e) {
-  // Configurar resposta JSON
+  // Configurar resposta JSON com CORS adequado
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
   
-  // Configurar cabeçalhos CORS de forma correta
-  var headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
-  };
-  
   // Lidar com solicitações OPTIONS (pré-verificação CORS)
   if (e && e.parameter && e.parameter.method === 'options') {
-    return output.setContent(JSON.stringify({
+    var responseText = JSON.stringify({
       status: 'ok',
-      headers: headers
-    }));
+      message: 'CORS preflight handled'
+    });
+    output.setContent(responseText);
+    return output;
   }
   
   try {
@@ -245,14 +240,16 @@ function handleRequest(e) {
       };
     }
     
-    return output.setContent(JSON.stringify(result));
+    output.setContent(JSON.stringify(result));
+    return output;
     
   } catch (error) {
     Logger.log('Erro: ' + error.toString());
-    return output.setContent(JSON.stringify({
+    output.setContent(JSON.stringify({
       success: false,
       error: error.toString()
     }));
+    return output;
   }
 }
 
@@ -301,23 +298,18 @@ function doPost(e) {
 }
 
 function handleRequest(e) {
-  // Configurar resposta JSON
+  // Configurar resposta JSON com CORS adequado
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
   
-  // Configurar cabeçalhos CORS de forma correta
-  var headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
-  };
-  
   // Lidar com solicitações OPTIONS (pré-verificação CORS)
   if (e && e.parameter && e.parameter.method === 'options') {
-    return output.setContent(JSON.stringify({
+    var responseText = JSON.stringify({
       status: 'ok',
-      headers: headers
-    }));
+      message: 'CORS preflight handled'
+    });
+    output.setContent(responseText);
+    return output;
   }
   
   try {
@@ -518,14 +510,16 @@ function handleRequest(e) {
       };
     }
     
-    return output.setContent(JSON.stringify(result));
+    output.setContent(JSON.stringify(result));
+    return output;
     
   } catch (error) {
     Logger.log('Erro: ' + error.toString());
-    return output.setContent(JSON.stringify({
+    output.setContent(JSON.stringify({
       success: false,
       error: error.toString()
     }));
+    return output;
   }
 }
 
@@ -574,23 +568,18 @@ function doPost(e) {
 }
 
 function handleRequest(e) {
-  // Configurar resposta JSON
+  // Configurar resposta JSON com CORS adequado
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
   
-  // Configurar cabeçalhos CORS de forma correta
-  var headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
-  };
-  
   // Lidar com solicitações OPTIONS (pré-verificação CORS)
   if (e && e.parameter && e.parameter.method === 'options') {
-    return output.setContent(JSON.stringify({
+    var responseText = JSON.stringify({
       status: 'ok',
-      headers: headers
-    }));
+      message: 'CORS preflight handled'
+    });
+    output.setContent(responseText);
+    return output;
   }
   
   try {
@@ -883,14 +872,16 @@ function handleRequest(e) {
       };
     }
     
-    return output.setContent(JSON.stringify(result));
+    output.setContent(JSON.stringify(result));
+    return output;
     
   } catch (error) {
     Logger.log('Erro: ' + error.toString());
-    return output.setContent(JSON.stringify({
+    output.setContent(JSON.stringify({
       success: false,
       error: error.toString()
     }));
+    return output;
   }
 }
 
@@ -979,12 +970,16 @@ Para integrar o sistema com o Google Sheets, siga estes passos para cada planilh
    i. Copie a URL do aplicativo da web gerado
    j. No aplicativo, cole essa URL no campo correspondente em Configurações > Integrações
 
-3. IMPORTANTE: O código foi atualizado para corrigir o erro "output.addHeader is not a function". O novo código usa uma abordagem diferente para lidar com cabeçalhos CORS.
+3. IMPORTANTE: O código foi atualizado para corrigir o erro "output.addHeader is not a function". O novo código usa ContentService.createTextOutput() e setContent() para lidar com CORS de forma adequada.
 
 4. Testando a integração:
    - Após configurar todas as URLs, clique em "Salvar configurações"
    - No Dashboard, use o botão "Sincronizar com Google Sheets" para testar
-   - Se ainda ocorrerem erros, verifique os logs do Apps Script (no editor do Apps Script, vá em "Ver" > "Logs")
+   - Se ocorrerem erros, verifique os logs do Apps Script (no editor do Apps Script, vá em "Ver" > "Logs")
+   - Também pode testar visitando diretamente a URL do script no navegador para verificar se a resposta é "O serviço X está online e pronto para receber dados via POST"
 
-5. Cada planilha responderá com uma mensagem "O serviço X está online e pronto para receber dados via POST" quando acessada diretamente, o que confirma que está funcionando corretamente.
+5. Dicas de solução de problemas:
+   - Se ainda tiver problemas com CORS, talvez seja necessário ajustar as configurações de CORS no método no aplicativo
+   - Certifique-se de que todas as URLs estão corretamente configuradas
+   - Verifique se as permissões do Google Sheets permitem acesso público
 `;
