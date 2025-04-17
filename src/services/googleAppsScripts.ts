@@ -1,352 +1,6 @@
 
-import { FinancialTransaction, Customer, Product, Supplier, SHEET_URL } from "@/types/models";
-import { toast } from "sonner";
+// Códigos para inserir no Google Apps Script para cada planilha
 
-/**
- * Google Sheets Integration Service
- * 
- * Este serviço gerencia a sincronização entre o aplicativo e o Google Sheets.
- * Fornece funções para exportar dados para e importar dados do Google Sheets.
- */
-
-// URL base para cada planilha (configurada pelo usuário)
-export const FINANCEIRO_SHEET_URL = "https://script.google.com/macros/s/AKfycbzTbxsxRu_Eic9g1m45GJ_8Eaor4tfDatSNl--35JsRG-hofoLrTL9mceBPwwdkOPzf-w/exec";
-export const CLIENTES_SHEET_URL = "https://script.google.com/macros/s/AKfycbxeYUHqpJgxlU6nm-3-QhqGVrMV-n2kSgByA9irFaYQIcVMeiibx3JmPVPiKSPgl60d/exec";
-export const OPERACOES_SHEET_URL = "https://script.google.com/macros/s/AKfycbz1Fuf9wn60aquimAsgEMDR-NUcBBJQn4EHPoxhOSov9gvQSlmr3tDQNWJwCKNubNEIDQ/exec";
-
-// Sistema de log para rastrear operações com Google Sheets
-export const syncLog = {
-  logs: [] as {timestamp: string, action: string, status: string, details?: string}[],
-  
-  add(action: string, status: string, details?: string) {
-    const timestamp = new Date().toISOString();
-    const log = { timestamp, action, status, details };
-    this.logs.unshift(log); // Adiciona no início para logs mais recentes primeiro
-    
-    // Manter apenas os últimos 100 logs
-    if (this.logs.length > 100) {
-      this.logs.pop();
-    }
-    
-    console.log(`[Sheets Sync] ${timestamp} - ${action}: ${status}`, details || '');
-    return log;
-  },
-  
-  getLogs() {
-    return this.logs;
-  },
-  
-  clearLogs() {
-    this.logs = [];
-  }
-};
-
-// Função auxiliar para lidar com CORS
-const fetchWithCORS = async (url: string, options: RequestInit = {}) => {
-  // Adicionar cabeçalhos CORS necessários
-  const corsOptions: RequestInit = {
-    ...options,
-    mode: 'cors',
-    headers: {
-      ...options.headers,
-      'Content-Type': 'application/json',
-    },
-  };
-  
-  try {
-    // Primeiro, tentar com fetch direto (pode funcionar se o CORS estiver configurado no servidor)
-    syncLog.add('Fetch', 'Tentando', `URL: ${url}`);
-    const response = await fetch(url, corsOptions);
-    syncLog.add('Fetch', 'Sucesso', `URL: ${url}`);
-    return response;
-  } catch (error) {
-    // Se falhar por CORS, tentar com proxy JSONP ou outra estratégia
-    syncLog.add('Fetch', 'Erro CORS', `URL: ${url}, Erro: ${error}`);
-    
-    // Tentar com proxy CORS
-    try {
-      const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`;
-      syncLog.add('Fetch', 'Tentando com proxy', `URL: ${proxyUrl}`);
-      const proxyResponse = await fetch(proxyUrl, corsOptions);
-      syncLog.add('Fetch', 'Sucesso com proxy', `URL: ${proxyUrl}`);
-      return proxyResponse;
-    } catch (proxyError) {
-      // Se o proxy também falhar, registrar erro e tentar com abordagem JSONP
-      syncLog.add('Fetch', 'Erro proxy', `URL: ${url}, Erro: ${proxyError}`);
-      throw proxyError; // Propagar o erro para tratamento posterior
-    }
-  }
-};
-
-// Função principal de sincronização para sincronizar todos os dados com o Google Sheets
-export const syncWithGoogleSheets = async (
-  transactions: FinancialTransaction[],
-  customers: Customer[],
-  products: Product[],
-  suppliers: Supplier[]
-): Promise<boolean> => {
-  try {
-    syncLog.add('Sincronização', 'Iniciando', 'Sincronizando todos os dados');
-    console.log("Sincronizando com Google Sheets...");
-    
-    // Sincronizar transações financeiras
-    await syncFinanceiro(transactions);
-    
-    // Sincronizar clientes
-    await syncClientes(customers);
-    
-    // Sincronizar produtos e fornecedores
-    await syncOperacoes(products, suppliers);
-    
-    syncLog.add('Sincronização', 'Concluída', 'Todos os dados sincronizados com sucesso');
-    toast.success("Dados sincronizados com Google Sheets com sucesso!");
-    return true;
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    syncLog.add('Sincronização', 'Erro', `Erro: ${errorMsg}`);
-    console.error("Erro ao sincronizar com Google Sheets:", error);
-    toast.error("Erro ao sincronizar com Google Sheets.");
-    return false;
-  }
-};
-
-// Sincronizar dados com a planilha Financeiro
-const syncFinanceiro = async (transactions: FinancialTransaction[]): Promise<void> => {
-  try {
-    syncLog.add('Sincronizar Financeiro', 'Iniciando', `Enviando ${transactions.length} transações`);
-    
-    const response = await fetchWithCORS(`${FINANCEIRO_SHEET_URL}?action=syncTransactions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transactions })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Erro ao sincronizar transações: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.error || "Erro desconhecido ao sincronizar transações");
-    }
-    
-    syncLog.add('Sincronizar Financeiro', 'Sucesso', 'Transações sincronizadas');
-  } catch (error) {
-    syncLog.add('Sincronizar Financeiro', 'Erro', `${error}`);
-    console.error("Erro ao sincronizar transações:", error);
-    throw error;
-  }
-};
-
-// Sincronizar dados com a planilha Clientes
-const syncClientes = async (customers: Customer[]): Promise<void> => {
-  try {
-    syncLog.add('Sincronizar Clientes', 'Iniciando', `Enviando ${customers.length} clientes`);
-    
-    const response = await fetchWithCORS(`${CLIENTES_SHEET_URL}?action=syncCustomers`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customers })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Erro ao sincronizar clientes: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.error || "Erro desconhecido ao sincronizar clientes");
-    }
-    
-    syncLog.add('Sincronizar Clientes', 'Sucesso', 'Clientes sincronizados');
-  } catch (error) {
-    syncLog.add('Sincronizar Clientes', 'Erro', `${error}`);
-    console.error("Erro ao sincronizar clientes:", error);
-    throw error;
-  }
-};
-
-// Sincronizar dados com a planilha Operações
-const syncOperacoes = async (products: Product[], suppliers: Supplier[]): Promise<void> => {
-  try {
-    syncLog.add('Sincronizar Operações', 'Iniciando', `Enviando ${products.length} produtos e ${suppliers.length} fornecedores`);
-    
-    const response = await fetchWithCORS(`${OPERACOES_SHEET_URL}?action=syncOperations`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ products, suppliers })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Erro ao sincronizar operações: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.error || "Erro desconhecido ao sincronizar operações");
-    }
-    
-    syncLog.add('Sincronizar Operações', 'Sucesso', 'Produtos e fornecedores sincronizados');
-  } catch (error) {
-    syncLog.add('Sincronizar Operações', 'Erro', `${error}`);
-    console.error("Erro ao sincronizar operações:", error);
-    throw error;
-  }
-};
-
-// Exportar transações para o Google Sheets
-export const exportTransactionsToSheet = async (
-  transactions: FinancialTransaction[]
-): Promise<boolean> => {
-  try {
-    syncLog.add('Exportar Transações', 'Iniciando', `Exportando ${transactions.length} transações`);
-    
-    const response = await fetchWithCORS(`${FINANCEIRO_SHEET_URL}?action=exportTransactions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transactions })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Erro na exportação: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.error || "Erro desconhecido");
-    }
-    
-    syncLog.add('Exportar Transações', 'Sucesso', 'Transações exportadas com sucesso');
-    toast.success("Transações exportadas com sucesso!");
-    return true;
-  } catch (error) {
-    syncLog.add('Exportar Transações', 'Erro', `${error}`);
-    console.error("Erro ao exportar transações:", error);
-    toast.error("Erro ao exportar transações.");
-    return false;
-  }
-};
-
-// Exportar clientes para o Google Sheets
-export const exportCustomersToSheet = async (
-  customers: Customer[]
-): Promise<boolean> => {
-  try {
-    syncLog.add('Exportar Clientes', 'Iniciando', `Exportando ${customers.length} clientes`);
-    
-    const response = await fetchWithCORS(`${CLIENTES_SHEET_URL}?action=exportCustomers`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customers })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Erro na exportação: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.error || "Erro desconhecido");
-    }
-    
-    syncLog.add('Exportar Clientes', 'Sucesso', 'Clientes exportados com sucesso');
-    toast.success("Clientes exportados com sucesso!");
-    return true;
-  } catch (error) {
-    syncLog.add('Exportar Clientes', 'Erro', `${error}`);
-    console.error("Erro ao exportar clientes:", error);
-    toast.error("Erro ao exportar clientes.");
-    return false;
-  }
-};
-
-// Exportar produtos para o Google Sheets
-export const exportProductsToSheet = async (
-  products: Product[]
-): Promise<boolean> => {
-  try {
-    syncLog.add('Exportar Produtos', 'Iniciando', `Exportando ${products.length} produtos`);
-    
-    const response = await fetchWithCORS(`${OPERACOES_SHEET_URL}?action=exportProducts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ products })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Erro na exportação: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.error || "Erro desconhecido");
-    }
-    
-    syncLog.add('Exportar Produtos', 'Sucesso', 'Produtos exportados com sucesso');
-    toast.success("Produtos exportados com sucesso!");
-    return true;
-  } catch (error) {
-    syncLog.add('Exportar Produtos', 'Erro', `${error}`);
-    console.error("Erro ao exportar produtos:", error);
-    toast.error("Erro ao exportar produtos.");
-    return false;
-  }
-};
-
-// Importar dados do Google Sheets
-export const importFromGoogleSheets = async (): Promise<{
-  transactions: FinancialTransaction[];
-  customers: Customer[];
-  products: Product[];
-  suppliers: Supplier[];
-} | null> => {
-  try {
-    syncLog.add('Importar Dados', 'Iniciando', 'Importando dados de todas as planilhas');
-
-    // Importar transações
-    const transactionsResponse = await fetchWithCORS(`${FINANCEIRO_SHEET_URL}?action=importTransactions`);
-    if (!transactionsResponse.ok) {
-      throw new Error(`Erro ao importar transações: ${transactionsResponse.statusText}`);
-    }
-    const transactionsData = await transactionsResponse.json();
-    syncLog.add('Importar Transações', 'Sucesso', `${transactionsData.data?.length || 0} transações importadas`);
-    
-    // Importar clientes
-    const customersResponse = await fetchWithCORS(`${CLIENTES_SHEET_URL}?action=importCustomers`);
-    if (!customersResponse.ok) {
-      throw new Error(`Erro ao importar clientes: ${customersResponse.statusText}`);
-    }
-    const customersData = await customersResponse.json();
-    syncLog.add('Importar Clientes', 'Sucesso', `${customersData.data?.length || 0} clientes importados`);
-    
-    // Importar produtos e fornecedores
-    const operationsResponse = await fetchWithCORS(`${OPERACOES_SHEET_URL}?action=importOperations`);
-    if (!operationsResponse.ok) {
-      throw new Error(`Erro ao importar operações: ${operationsResponse.statusText}`);
-    }
-    const operationsData = await operationsResponse.json();
-    syncLog.add('Importar Operações', 'Sucesso', 
-      `${operationsData.data?.products?.length || 0} produtos e 
-       ${operationsData.data?.suppliers?.length || 0} fornecedores importados`);
-    
-    syncLog.add('Importar Dados', 'Concluído', 'Todos os dados foram importados com sucesso');
-    toast.success("Dados importados com sucesso!");
-    
-    return {
-      transactions: transactionsData.data || [],
-      customers: customersData.data || [],
-      products: operationsData.data?.products || [],
-      suppliers: operationsData.data?.suppliers || []
-    };
-  } catch (error) {
-    syncLog.add('Importar Dados', 'Erro', `${error}`);
-    console.error("Erro ao importar dados:", error);
-    toast.error("Erro ao importar dados.");
-    return null;
-  }
-};
-
-// Código Google Apps Script para a planilha de Financeiro
 export const financeiroSheetScript = `
 /**
  * Script para Planilha de Finanças
@@ -362,36 +16,53 @@ function doPost(e) {
 }
 
 function handleRequest(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Transacoes') || ss.insertSheet('Transacoes');
+  // Configurar cabeçalhos CORS para permitir solicitações de qualquer origem
+  var output = ContentService.createTextOutput();
+  output.setMimeType(ContentService.MimeType.JSON);
   
-  // Verificar se a planilha já tem cabeçalhos, caso não, criar
-  if (sheet.getLastRow() === 0) {
-    var headers = [
-      'ID', 'Data', 'Tipo', 'Descrição', 'Categoria', 
-      'Valor', 'Método de Pagamento', 'Cliente', 'ClienteID',
-      'Produtos', 'ProdutoIDs', 'Status', 'Notas', 
-      'Reembolsável', 'Transação Relacionada'
-    ];
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    
-    // Formatar cabeçalhos
-    sheet.getRange(1, 1, 1, headers.length)
-      .setBackground('#4285f4')
-      .setFontColor('#ffffff')
-      .setFontWeight('bold');
+  // Adicionar cabeçalhos CORS
+  output.addHeader('Access-Control-Allow-Origin', '*');
+  output.addHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  output.addHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  // Lidar com solicitações OPTIONS (pré-verificação CORS)
+  if (e.parameter.method === 'options') {
+    return output.setContent(JSON.stringify({status: 'ok'}));
   }
   
-  var response = ContentService.createTextOutput();
-  response.setMimeType(ContentService.MimeType.JSON);
-  
   try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Transacoes') || ss.insertSheet('Transacoes');
+    
+    // Verificar se a planilha já tem cabeçalhos, caso não, criar
+    if (sheet.getLastRow() === 0) {
+      var headers = [
+        'ID', 'Data', 'Tipo', 'Descrição', 'Categoria', 
+        'Valor', 'Método de Pagamento', 'Cliente', 'ClienteID',
+        'Produtos', 'ProdutoIDs', 'Status', 'Notas', 
+        'Reembolsável', 'Transação Relacionada'
+      ];
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      
+      // Formatar cabeçalhos
+      sheet.getRange(1, 1, 1, headers.length)
+        .setBackground('#4285f4')
+        .setFontColor('#ffffff')
+        .setFontWeight('bold');
+    }
+    
     var action = e.parameter.action;
+    var result = {};
+    
+    // Log da ação para debugging
+    Logger.log('Ação recebida: ' + action);
     
     // Exportar transações para a planilha
     if (action === 'exportTransactions' && e.postData) {
       var data = JSON.parse(e.postData.contents);
       var transactions = data.transactions;
+      
+      Logger.log('Exportando ' + transactions.length + ' transações');
       
       // Limpar dados existentes (exceto cabeçalhos)
       if (sheet.getLastRow() > 1) {
@@ -426,12 +97,10 @@ function handleRequest(e) {
         sheet.autoResizeColumns(1, values[0].length);
       }
       
-      response.setContent(JSON.stringify({
+      result = {
         success: true,
         message: 'Transações exportadas com sucesso!'
-      }));
-      
-      return response;
+      };
     }
     
     // Importar transações da planilha
@@ -439,53 +108,54 @@ function handleRequest(e) {
       var dataRange = sheet.getDataRange();
       var values = dataRange.getValues();
       
+      Logger.log('Importando transações da planilha');
+      
       if (values.length <= 1) {
-        response.setContent(JSON.stringify({
+        result = {
           success: true,
           data: []
-        }));
-        return response;
-      }
-      
-      var headers = values[0];
-      var transactions = [];
-      
-      for (var i = 1; i < values.length; i++) {
-        var row = values[i];
-        var transaction = {};
+        };
+      } else {
+        var headers = values[0];
+        var transactions = [];
         
-        // Mapear dados da planilha para objeto transaction
-        transaction.id = row[0];
-        transaction.date = row[1];
-        transaction.type = row[2];
-        transaction.description = row[3];
-        transaction.category = row[4];
-        transaction.amount = Number(row[5]);
-        transaction.paymentMethod = row[6];
-        transaction.customer = row[7];
-        transaction.customerId = row[8];
-        transaction.products = row[9] ? row[9].split(', ') : [];
-        transaction.productIds = row[10] ? row[10].split(', ') : [];
-        transaction.status = row[11];
-        transaction.notes = row[12];
-        transaction.isRefundable = row[13] === 'Sim';
-        transaction.relatedTransactionId = row[14];
+        for (var i = 1; i < values.length; i++) {
+          var row = values[i];
+          var transaction = {};
+          
+          // Mapear dados da planilha para objeto transaction
+          transaction.id = row[0];
+          transaction.date = row[1];
+          transaction.type = row[2];
+          transaction.description = row[3];
+          transaction.category = row[4];
+          transaction.amount = Number(row[5]);
+          transaction.paymentMethod = row[6];
+          transaction.customer = row[7];
+          transaction.customerId = row[8];
+          transaction.products = row[9] ? row[9].split(', ') : [];
+          transaction.productIds = row[10] ? row[10].split(', ') : [];
+          transaction.status = row[11];
+          transaction.notes = row[12];
+          transaction.isRefundable = row[13] === 'Sim';
+          transaction.relatedTransactionId = row[14];
+          
+          transactions.push(transaction);
+        }
         
-        transactions.push(transaction);
+        result = {
+          success: true,
+          data: transactions
+        };
       }
-      
-      response.setContent(JSON.stringify({
-        success: true,
-        data: transactions
-      }));
-      
-      return response;
     }
     
     // Sincronizar todas as transações
     else if (action === 'syncTransactions' && e.postData) {
       var data = JSON.parse(e.postData.contents);
       var transactions = data.transactions;
+      
+      Logger.log('Sincronizando ' + transactions.length + ' transações');
       
       // Implementar sincronização bidirecional
       // 1. Obter dados existentes da planilha
@@ -550,29 +220,27 @@ function handleRequest(e) {
         sheet.autoResizeColumns(1, values[0].length);
       }
       
-      response.setContent(JSON.stringify({
+      result = {
         success: true,
         message: 'Transações sincronizadas com sucesso!'
-      }));
-      
-      return response;
+      };
     }
     
     else {
-      response.setContent(JSON.stringify({
+      result = {
         success: false,
         error: 'Ação inválida ou dados ausentes'
-      }));
-      
-      return response;
+      };
     }
+    
+    return output.setContent(JSON.stringify(result));
+    
   } catch (error) {
-    response.setContent(JSON.stringify({
+    Logger.log('Erro: ' + error.toString());
+    return output.setContent(JSON.stringify({
       success: false,
       error: error.toString()
     }));
-    
-    return response;
   }
 }
 
@@ -607,7 +275,6 @@ function mergeTransactions(appTransactions, sheetTransactions) {
 }
 `;
 
-// Código Google Apps Script para a planilha de Clientes
 export const clientesSheetScript = `
 /**
  * Script para Planilha de Clientes
@@ -623,35 +290,52 @@ function doPost(e) {
 }
 
 function handleRequest(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Clientes') || ss.insertSheet('Clientes');
+  // Configurar cabeçalhos CORS para permitir solicitações de qualquer origem
+  var output = ContentService.createTextOutput();
+  output.setMimeType(ContentService.MimeType.JSON);
   
-  // Verificar se a planilha já tem cabeçalhos, caso não, criar
-  if (sheet.getLastRow() === 0) {
-    var headers = [
-      'ID', 'Nome', 'Email', 'Telefone', 'Endereço', 
-      'Data de Cadastro', 'Total de Compras', 'Última Compra',
-      'Observações', 'Status', 'CPF/CNPJ', 'Categoria'
-    ];
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    
-    // Formatar cabeçalhos
-    sheet.getRange(1, 1, 1, headers.length)
-      .setBackground('#4285f4')
-      .setFontColor('#ffffff')
-      .setFontWeight('bold');
+  // Adicionar cabeçalhos CORS
+  output.addHeader('Access-Control-Allow-Origin', '*');
+  output.addHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  output.addHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  // Lidar com solicitações OPTIONS (pré-verificação CORS)
+  if (e.parameter.method === 'options') {
+    return output.setContent(JSON.stringify({status: 'ok'}));
   }
   
-  var response = ContentService.createTextOutput();
-  response.setMimeType(ContentService.MimeType.JSON);
-  
   try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Clientes') || ss.insertSheet('Clientes');
+    
+    // Verificar se a planilha já tem cabeçalhos, caso não, criar
+    if (sheet.getLastRow() === 0) {
+      var headers = [
+        'ID', 'Nome', 'Email', 'Telefone', 'Endereço', 
+        'Data de Cadastro', 'Total de Compras', 'Última Compra',
+        'Observações', 'Status', 'CPF/CNPJ', 'Categoria'
+      ];
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      
+      // Formatar cabeçalhos
+      sheet.getRange(1, 1, 1, headers.length)
+        .setBackground('#4285f4')
+        .setFontColor('#ffffff')
+        .setFontWeight('bold');
+    }
+    
     var action = e.parameter.action;
+    var result = {};
+    
+    // Log da ação
+    Logger.log('Ação recebida: ' + action);
     
     // Exportar clientes para a planilha
     if (action === 'exportCustomers' && e.postData) {
       var data = JSON.parse(e.postData.contents);
       var customers = data.customers;
+      
+      Logger.log('Exportando ' + customers.length + ' clientes');
       
       // Limpar dados existentes (exceto cabeçalhos)
       if (sheet.getLastRow() > 1) {
@@ -683,12 +367,10 @@ function handleRequest(e) {
         sheet.autoResizeColumns(1, values[0].length);
       }
       
-      response.setContent(JSON.stringify({
+      result = {
         success: true,
         message: 'Clientes exportados com sucesso!'
-      }));
-      
-      return response;
+      };
     }
     
     // Importar clientes da planilha
@@ -696,50 +378,51 @@ function handleRequest(e) {
       var dataRange = sheet.getDataRange();
       var values = dataRange.getValues();
       
+      Logger.log('Importando clientes da planilha');
+      
       if (values.length <= 1) {
-        response.setContent(JSON.stringify({
+        result = {
           success: true,
           data: []
-        }));
-        return response;
-      }
-      
-      var headers = values[0];
-      var customers = [];
-      
-      for (var i = 1; i < values.length; i++) {
-        var row = values[i];
-        var customer = {};
+        };
+      } else {
+        var headers = values[0];
+        var customers = [];
         
-        // Mapear dados da planilha para objeto customer
-        customer.id = row[0];
-        customer.name = row[1];
-        customer.email = row[2];
-        customer.phone = row[3];
-        customer.address = row[4];
-        customer.joinDate = row[5];
-        customer.totalPurchases = Number(row[6]);
-        customer.lastPurchase = row[7];
-        customer.notes = row[8];
-        customer.status = row[9];
-        customer.document = row[10];
-        customer.category = row[11];
+        for (var i = 1; i < values.length; i++) {
+          var row = values[i];
+          var customer = {};
+          
+          // Mapear dados da planilha para objeto customer
+          customer.id = row[0];
+          customer.name = row[1];
+          customer.email = row[2];
+          customer.phone = row[3];
+          customer.address = row[4];
+          customer.joinDate = row[5];
+          customer.totalPurchases = Number(row[6]);
+          customer.lastPurchase = row[7];
+          customer.notes = row[8];
+          customer.status = row[9];
+          customer.document = row[10];
+          customer.category = row[11];
+          
+          customers.push(customer);
+        }
         
-        customers.push(customer);
+        result = {
+          success: true,
+          data: customers
+        };
       }
-      
-      response.setContent(JSON.stringify({
-        success: true,
-        data: customers
-      }));
-      
-      return response;
     }
     
     // Sincronizar todos os clientes
     else if (action === 'syncCustomers' && e.postData) {
       var data = JSON.parse(e.postData.contents);
       var customers = data.customers;
+      
+      Logger.log('Sincronizando ' + customers.length + ' clientes');
       
       // Implementar sincronização bidirecional
       // 1. Obter dados existentes da planilha
@@ -798,29 +481,27 @@ function handleRequest(e) {
         sheet.autoResizeColumns(1, values[0].length);
       }
       
-      response.setContent(JSON.stringify({
+      result = {
         success: true,
         message: 'Clientes sincronizados com sucesso!'
-      }));
-      
-      return response;
+      };
     }
     
     else {
-      response.setContent(JSON.stringify({
+      result = {
         success: false,
         error: 'Ação inválida ou dados ausentes'
-      }));
-      
-      return response;
+      };
     }
+    
+    return output.setContent(JSON.stringify(result));
+    
   } catch (error) {
-    response.setContent(JSON.stringify({
+    Logger.log('Erro: ' + error.toString());
+    return output.setContent(JSON.stringify({
       success: false,
       error: error.toString()
     }));
-    
-    return response;
   }
 }
 
@@ -855,7 +536,6 @@ function mergeCustomers(appCustomers, sheetCustomers) {
 }
 `;
 
-// Código Google Apps Script para a planilha de Operações
 export const operacoesSheetScript = `
 /**
  * Script para Planilha de Operações
@@ -871,51 +551,68 @@ function doPost(e) {
 }
 
 function handleRequest(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var productsSheet = ss.getSheetByName('Produtos') || ss.insertSheet('Produtos');
-  var suppliersSheet = ss.getSheetByName('Fornecedores') || ss.insertSheet('Fornecedores');
+  // Configurar cabeçalhos CORS para permitir solicitações de qualquer origem
+  var output = ContentService.createTextOutput();
+  output.setMimeType(ContentService.MimeType.JSON);
   
-  // Configurar cabeçalhos para Produtos
-  if (productsSheet.getLastRow() === 0) {
-    var productHeaders = [
-      'ID', 'Nome', 'Descrição', 'Preço', 'Custo',
-      'Estoque', 'Categoria', 'Estoque Mínimo',
-      'Fornecedor', 'Código de Barras', 'Data de Cadastro'
-    ];
-    productsSheet.getRange(1, 1, 1, productHeaders.length).setValues([productHeaders]);
-    
-    // Formatar cabeçalhos
-    productsSheet.getRange(1, 1, 1, productHeaders.length)
-      .setBackground('#4285f4')
-      .setFontColor('#ffffff')
-      .setFontWeight('bold');
+  // Adicionar cabeçalhos CORS
+  output.addHeader('Access-Control-Allow-Origin', '*');
+  output.addHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  output.addHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  // Lidar com solicitações OPTIONS (pré-verificação CORS)
+  if (e.parameter.method === 'options') {
+    return output.setContent(JSON.stringify({status: 'ok'}));
   }
-  
-  // Configurar cabeçalhos para Fornecedores
-  if (suppliersSheet.getLastRow() === 0) {
-    var supplierHeaders = [
-      'ID', 'Nome', 'Contato', 'Email', 'Telefone',
-      'Endereço', 'Produtos', 'CNPJ', 'Categoria'
-    ];
-    suppliersSheet.getRange(1, 1, 1, supplierHeaders.length).setValues([supplierHeaders]);
-    
-    // Formatar cabeçalhos
-    suppliersSheet.getRange(1, 1, 1, supplierHeaders.length)
-      .setBackground('#4285f4')
-      .setFontColor('#ffffff')
-      .setFontWeight('bold');
-  }
-  
-  var response = ContentService.createTextOutput();
-  response.setMimeType(ContentService.MimeType.JSON);
   
   try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var productsSheet = ss.getSheetByName('Produtos') || ss.insertSheet('Produtos');
+    var suppliersSheet = ss.getSheetByName('Fornecedores') || ss.insertSheet('Fornecedores');
+    
+    // Configurar cabeçalhos para Produtos
+    if (productsSheet.getLastRow() === 0) {
+      var productHeaders = [
+        'ID', 'Nome', 'Descrição', 'Preço', 'Custo',
+        'Estoque', 'Categoria', 'Estoque Mínimo',
+        'Fornecedor', 'Código de Barras', 'Data de Cadastro'
+      ];
+      productsSheet.getRange(1, 1, 1, productHeaders.length).setValues([productHeaders]);
+      
+      // Formatar cabeçalhos
+      productsSheet.getRange(1, 1, 1, productHeaders.length)
+        .setBackground('#4285f4')
+        .setFontColor('#ffffff')
+        .setFontWeight('bold');
+    }
+    
+    // Configurar cabeçalhos para Fornecedores
+    if (suppliersSheet.getLastRow() === 0) {
+      var supplierHeaders = [
+        'ID', 'Nome', 'Contato', 'Email', 'Telefone',
+        'Endereço', 'Produtos', 'CNPJ', 'Categoria'
+      ];
+      suppliersSheet.getRange(1, 1, 1, supplierHeaders.length).setValues([supplierHeaders]);
+      
+      // Formatar cabeçalhos
+      suppliersSheet.getRange(1, 1, 1, supplierHeaders.length)
+        .setBackground('#4285f4')
+        .setFontColor('#ffffff')
+        .setFontWeight('bold');
+    }
+    
     var action = e.parameter.action;
+    var result = {};
+    
+    // Log da ação
+    Logger.log('Ação recebida: ' + action);
     
     // Exportar produtos para a planilha
     if (action === 'exportProducts' && e.postData) {
       var data = JSON.parse(e.postData.contents);
       var products = data.products;
+      
+      Logger.log('Exportando ' + products.length + ' produtos');
       
       // Limpar dados existentes (exceto cabeçalhos)
       if (productsSheet.getLastRow() > 1) {
@@ -946,12 +643,10 @@ function handleRequest(e) {
         productsSheet.autoResizeColumns(1, values[0].length);
       }
       
-      response.setContent(JSON.stringify({
+      result = {
         success: true,
         message: 'Produtos exportados com sucesso!'
-      }));
-      
-      return response;
+      };
     }
     
     // Sincronizar operações (produtos e fornecedores)
@@ -959,6 +654,8 @@ function handleRequest(e) {
       var data = JSON.parse(e.postData.contents);
       var products = data.products;
       var suppliers = data.suppliers;
+      
+      Logger.log('Sincronizando ' + products.length + ' produtos e ' + suppliers.length + ' fornecedores');
       
       // Sincronizar produtos
       if (products && products.length > 0) {
@@ -1070,12 +767,10 @@ function handleRequest(e) {
         }
       }
       
-      response.setContent(JSON.stringify({
+      result = {
         success: true,
         message: 'Operações sincronizadas com sucesso!'
-      }));
-      
-      return response;
+      };
     }
     
     // Importar operações da planilha
@@ -1084,6 +779,8 @@ function handleRequest(e) {
       var productsDataRange = productsSheet.getDataRange();
       var productsValues = productsDataRange.getValues();
       var products = [];
+      
+      Logger.log('Importando produtos e fornecedores da planilha');
       
       if (productsValues.length > 1) {
         var productHeaders = productsValues[0];
@@ -1134,32 +831,30 @@ function handleRequest(e) {
         }
       }
       
-      response.setContent(JSON.stringify({
+      result = {
         success: true,
         data: {
           products: products,
           suppliers: suppliers
         }
-      }));
-      
-      return response;
+      };
     }
     
     else {
-      response.setContent(JSON.stringify({
+      result = {
         success: false,
         error: 'Ação inválida ou dados ausentes'
-      }));
-      
-      return response;
+      };
     }
+    
+    return output.setContent(JSON.stringify(result));
+    
   } catch (error) {
-    response.setContent(JSON.stringify({
+    Logger.log('Erro: ' + error.toString());
+    return output.setContent(JSON.stringify({
       success: false,
       error: error.toString()
     }));
-    
-    return response;
   }
 }
 
@@ -1224,22 +919,37 @@ function mergeSuppliers(appSuppliers, sheetSuppliers) {
 }
 `;
 
-// Instruções para integração com Google Sheets
 export const sheetIntegrationInstructions = `
+## Instruções para integrar com Google Sheets (Com CORS otimizado)
+
 Para integrar o sistema com o Google Sheets, siga estes passos para cada planilha:
 
-1. Acesse as planilhas do Google nas URLs fornecidas
-2. Clique em Extensões > Apps Script
-3. Cole o código correspondente para cada planilha
-4. Salve o projeto (Ctrl+S ou Cmd+S)
-5. Clique em Implantar > Nova implantação
-6. Selecione "Aplicativo da web"
-7. Configure:
-   - Execute como: Eu mesmo (seu email)
-   - Quem tem acesso: Qualquer pessoa
-8. Clique em "Implantar"
-9. Copie a URL do aplicativo da web gerado
-10. No aplicativo, substitua as URLs dos scripts no arquivo googleSheets.ts pelos URLs obtidos
+1. Acesse as planilhas do Google nas URLs fornecidas:
+   - Financeiro: https://docs.google.com/spreadsheets/d/1p1VUN_9CMuiQs3xC1sHlelHeq1gtzoMVqh1n0WxQQOg/edit?gid=0
+   - Clientes: https://docs.google.com/spreadsheets/d/1ywVsdLbnqGa0UX9JI_o1OECZwY2eVZWiS1pYX3tHqSc/edit?gid=0
+   - Operações: https://docs.google.com/spreadsheets/d/1VG24l45pKfvFdPVatvWT8wym0K-4IW8ZyABu4EBc0Yc/edit?gid=0
+
+2. Para cada planilha:
+   a. Clique em Extensões > Apps Script
+   b. Cole o código correspondente para cada planilha (financeiroSheetScript, clientesSheetScript, ou operacoesSheetScript)
+   c. Salve o projeto (Ctrl+S ou Cmd+S)
+   d. Clique em "Implantar" > "Nova implantação"
+   e. Selecione "Aplicativo da web"
+   f. Configure:
+      - Execute como: Eu mesmo (seu email)
+      - Quem tem acesso: Qualquer pessoa
+   g. Clique em "Implantar"
+   h. Copie a URL do aplicativo da web gerado
+   i. No aplicativo, substitua as URLs dos scripts no arquivo googleSheets.ts pelos URLs obtidos
+
+3. Configurações CORS importantes:
+   - Os scripts agora incluem cabeçalhos CORS para permitir solicitações de qualquer origem
+   - Se ainda tiver problemas de CORS, verifique se está acessando o aplicativo pelo domínio correto
+   - O sistema tentará usar diferentes estratégias para contornar problemas de CORS automaticamente
+
+4. Logs e depuração:
+   - Use o botão "Ver logs" no Dashboard para acompanhar as operações de sincronização
+   - No Google Apps Script, acesse "Visualizar" > "Logs" para ver logs do lado do servidor
 
 Importante: Certifique-se de que as planilhas estejam configuradas com as permissões corretas e que as colunas correspondam às esperadas pelos scripts.
 `;

@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { 
   FinancialTransaction, 
@@ -23,7 +22,8 @@ import {
   exportTransactionsToSheet,
   exportCustomersToSheet,
   exportProductsToSheet,
-  importFromGoogleSheets
+  importFromGoogleSheets,
+  syncLog
 } from "@/services/googleSheets";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
@@ -51,6 +51,7 @@ interface DataContextType {
   importFromSheet: () => Promise<void>;
   clearData: () => void;
   isLoading: boolean;
+  getSyncLogs: () => Array<{timestamp: string, action: string, status: string, details?: string}>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -70,7 +71,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     lowStockCount: 0,
   });
 
-  // Load initial data from localStorage
   useEffect(() => {
     setTransactions(getTransactions());
     setCustomers(getCustomers());
@@ -78,13 +78,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSuppliers(getSuppliers());
   }, []);
 
-  // Update dashboard summary whenever data changes
   useEffect(() => {
     updateDashboardSummary();
   }, [transactions, customers, products]);
 
   const updateDashboardSummary = () => {
-    // Calculate financial summary
     const totalIncome = transactions
       .filter(t => t.type === 'income')
       .reduce((sum, t) => sum + t.amount, 0);
@@ -95,10 +93,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     
     const balance = totalIncome - totalExpenses;
     
-    // Count customers
     const customersCount = customers.length;
     
-    // Count products and low stock
     const productsCount = products.length;
     const lowStockCount = products.filter(p => p.stock < (p.minimumStock || 10)).length;
     
@@ -112,7 +108,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // Transaction methods
   const addTransaction = (transaction: Omit<FinancialTransaction, 'id'>) => {
     const newTransaction: FinancialTransaction = {
       ...transaction,
@@ -140,7 +135,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     toast.success("Transação removida com sucesso!");
   };
 
-  // Customer methods
   const addCustomer = (customer: Omit<Customer, 'id'>) => {
     const newCustomer: Customer = {
       ...customer,
@@ -168,7 +162,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     toast.success("Cliente removido com sucesso!");
   };
 
-  // Product methods
   const addProduct = (product: Omit<Product, 'id'>) => {
     const newProduct: Product = {
       ...product,
@@ -196,7 +189,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     toast.success("Produto removido com sucesso!");
   };
 
-  // Supplier methods
   const addSupplier = (supplier: Omit<Supplier, 'id'>) => {
     const newSupplier: Supplier = {
       ...supplier,
@@ -224,54 +216,132 @@ export function DataProvider({ children }: { children: ReactNode }) {
     toast.success("Fornecedor removido com sucesso!");
   };
 
-  // Google Sheets sync
   const syncWithSheet = async () => {
+    if (isLoading) {
+      toast.warning("Sincronização já em andamento. Aguarde...");
+      return;
+    }
+    
     try {
       setIsLoading(true);
       toast.info("Sincronizando com Google Sheets...");
-      await syncWithGoogleSheets(transactions, customers, products, suppliers);
+      
+      let success = false;
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (!success && attempts < maxAttempts) {
+        attempts++;
+        try {
+          await syncWithGoogleSheets(transactions, customers, products, suppliers);
+          success = true;
+        } catch (error) {
+          console.error(`Tentativa ${attempts} falhou:`, error);
+          if (attempts === maxAttempts) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      
       toast.success("Dados sincronizados com Google Sheets com sucesso!");
+      
+      try {
+        const importedData = await importFromGoogleSheets();
+        if (importedData) {
+          setTransactions(importedData.transactions);
+          saveTransactions(importedData.transactions);
+          
+          setCustomers(importedData.customers);
+          saveCustomers(importedData.customers);
+          
+          setProducts(importedData.products);
+          saveProducts(importedData.products);
+          
+          setSuppliers(importedData.suppliers);
+          saveSuppliers(importedData.suppliers);
+          
+          toast.success("Dados atualizados com sucesso do Google Sheets!");
+        }
+      } catch (importError) {
+        console.error("Erro ao importar dados após sincronização:", importError);
+      }
     } catch (error) {
       console.error("Erro ao sincronizar com Google Sheets:", error);
-      toast.error("Erro ao sincronizar com Google Sheets.");
+      toast.error("Erro ao sincronizar com Google Sheets. Verifique os logs para mais detalhes.");
     } finally {
       setIsLoading(false);
     }
   };
 
   const exportToSheet = async (type: 'transactions' | 'customers' | 'products') => {
+    if (isLoading) {
+      toast.warning("Exportação já em andamento. Aguarde...");
+      return;
+    }
+    
     try {
       setIsLoading(true);
       toast.info(`Exportando ${type === 'transactions' ? 'transações' : type === 'customers' ? 'clientes' : 'produtos'}...`);
       
-      switch (type) {
-        case 'transactions':
-          await exportTransactionsToSheet(transactions);
-          break;
-        case 'customers':
-          await exportCustomersToSheet(customers);
-          break;
-        case 'products':
-          await exportProductsToSheet(products);
-          break;
+      let success = false;
+      let attempts = 0;
+      const maxAttempts = 2;
+      
+      while (!success && attempts < maxAttempts) {
+        attempts++;
+        try {
+          switch (type) {
+            case 'transactions':
+              await exportTransactionsToSheet(transactions);
+              break;
+            case 'customers':
+              await exportCustomersToSheet(customers);
+              break;
+            case 'products':
+              await exportProductsToSheet(products);
+              break;
+          }
+          success = true;
+        } catch (error) {
+          console.error(`Tentativa ${attempts} falhou:`, error);
+          if (attempts === maxAttempts) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
       
       toast.success(`${type === 'transactions' ? 'Transações' : type === 'customers' ? 'Clientes' : 'Produtos'} exportados com sucesso!`);
     } catch (error) {
       console.error(`Erro ao exportar ${type}:`, error);
-      toast.error(`Erro ao exportar ${type}.`);
+      toast.error(`Erro ao exportar ${type}. Verifique os logs para mais detalhes.`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Import from Google Sheets
   const importFromSheet = async () => {
+    if (isLoading) {
+      toast.warning("Importação já em andamento. Aguarde...");
+      return;
+    }
+    
     try {
       setIsLoading(true);
       toast.info("Importando dados do Google Sheets...");
       
-      const data = await importFromGoogleSheets();
+      let data = null;
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (!data && attempts < maxAttempts) {
+        attempts++;
+        try {
+          data = await importFromGoogleSheets();
+          if (!data) throw new Error("Dados importados são nulos");
+        } catch (error) {
+          console.error(`Tentativa ${attempts} falhou:`, error);
+          if (attempts === maxAttempts) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
       
       if (data) {
         setTransactions(data.transactions);
@@ -287,18 +357,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
         saveSuppliers(data.suppliers);
         
         toast.success("Dados importados com sucesso do Google Sheets!");
+        updateDashboardSummary();
       } else {
         toast.error("Não foi possível importar os dados do Google Sheets.");
       }
     } catch (error) {
       console.error("Erro ao importar do Google Sheets:", error);
-      toast.error("Erro ao importar do Google Sheets.");
+      toast.error("Erro ao importar do Google Sheets. Verifique os logs para mais detalhes.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Clear all data
   const clearData = () => {
     if (window.confirm("Tem certeza que deseja limpar todos os dados? Esta ação não pode ser desfeita.")) {
       setTransactions([]);
@@ -306,8 +376,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setProducts([]);
       setSuppliers([]);
       clearAllData();
+      syncLog.clearLogs();
       toast.success("Todos os dados foram limpos com sucesso.");
     }
+  };
+
+  const getSyncLogs = () => {
+    return syncLog.getLogs();
   };
 
   return (
@@ -335,6 +410,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         importFromSheet,
         clearData,
         isLoading,
+        getSyncLogs,
       }}
     >
       {children}
