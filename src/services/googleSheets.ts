@@ -10,9 +10,9 @@ import { toast } from "sonner";
  */
 
 // URL base para cada planilha (configurada pelo usuário)
-export const FINANCEIRO_SHEET_URL = "https://script.google.com/macros/s/YOUR-SCRIPT-ID-FINANCEIRO";
-export const CLIENTES_SHEET_URL = "https://script.google.com/macros/s/YOUR-SCRIPT-ID-CLIENTES";
-export const OPERACOES_SHEET_URL = "https://script.google.com/macros/s/YOUR-SCRIPT-ID-OPERACOES";
+export const FINANCEIRO_SHEET_URL = "https://script.google.com/macros/s/AKfycbzTbxsxRu_Eic9g1m45GJ_8Eaor4tfDatSNl--35JsRG-hofoLrTL9mceBPwwdkOPzf-w/exec";
+export const CLIENTES_SHEET_URL = "https://script.google.com/macros/s/AKfycbxeYUHqpJgxlU6nm-3-QhqGVrMV-n2kSgByA9irFaYQIcVMeiibx3JmPVPiKSPgl60d/exec";
+export const OPERACOES_SHEET_URL = "https://script.google.com/macros/s/AKfycbz1Fuf9wn60aquimAsgEMDR-NUcBBJQn4EHPoxhOSov9gvQSlmr3tDQNWJwCKNubNEIDQ/exec";
 
 // Função principal de sincronização para sincronizar todos os dados com o Google Sheets
 export const syncWithGoogleSheets = async (
