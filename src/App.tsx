@@ -1,120 +1,73 @@
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { ThemeProvider } from "@/contexts/ThemeContext";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "sonner";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { User } from "@supabase/supabase-js";
+
+// Pages
+import Auth from "@/pages/Auth";
+import Dashboard from "@/pages/Dashboard";
+import Financeiro from "@/pages/Financeiro";
+import Operacoes from "@/pages/Operacoes";
+import Relatorios from "@/pages/Relatorios";
+import Configuracoes from "@/pages/Configuracoes";
+
+// Providers
 import { DataProvider } from "@/contexts/DataContext";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Financeiro from "./pages/Financeiro";
-import Clientes from "./pages/Clientes";
-import Operacoes from "./pages/Operacoes";
-import Relatorios from "./pages/Relatorios";
-import Configuracoes from "./pages/Configuracoes";
-import NotFound from "./pages/NotFound";
-import { useAuth } from "@/contexts/AuthContext";
-import { useEffect } from "react";
+import { AuthProvider } from "@/contexts/AuthContext";
 
-const queryClient = new QueryClient();
-
-// Protected route component
+// Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = useAuth();
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return <div>Carregando...</div>;
   }
-  
+
+  if (!user) {
+    return <Navigate to="/auth" />;
+  }
+
   return <>{children}</>;
 };
 
-// Initialize the app
-const AppContent = () => {
-  const { isAuthenticated } = useAuth();
-  
-  // Redirect to dashboard if already authenticated
-  useEffect(() => {
-    if (isAuthenticated && window.location.pathname === '/') {
-      window.location.href = '/dashboard';
-    }
-  }, [isAuthenticated]);
-  
+function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Login />} />
-      <Route 
-        path="/dashboard" 
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/financeiro" 
-        element={
-          <ProtectedRoute>
-            <Financeiro />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/clientes" 
-        element={
-          <ProtectedRoute>
-            <Clientes />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/operacoes" 
-        element={
-          <ProtectedRoute>
-            <Operacoes />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/relatorios" 
-        element={
-          <ProtectedRoute>
-            <Relatorios />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/configuracoes" 
-        element={
-          <ProtectedRoute>
-            <Configuracoes />
-          </ProtectedRoute>
-        } 
-      />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  );
-};
-
-// Main App component with providers
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <ThemeProvider>
+    <Router>
+      <AuthProvider>
         <DataProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <AppContent />
-            </BrowserRouter>
-          </TooltipProvider>
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            
+            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/financeiro" element={<ProtectedRoute><Financeiro /></ProtectedRoute>} />
+            <Route path="/operacoes" element={<ProtectedRoute><Operacoes /></ProtectedRoute>} />
+            <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
+            <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
+          </Routes>
+          <Toaster />
         </DataProvider>
-      </ThemeProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+      </AuthProvider>
+    </Router>
+  );
+}
 
 export default App;

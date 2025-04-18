@@ -1,85 +1,53 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { User, USER, PASSWORD } from "@/types/models";
-import { getUser, setUser, isAuthenticated, setAuthenticated, logout } from "@/services/localStorage";
+import { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => boolean;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setCurrentUser] = useState<User | null>(null);
-  const [authenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // Check if user is authenticated
-    const authStatus = isAuthenticated();
-    setIsAuthenticated(authStatus);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setIsAuthenticated(!!session?.user);
+    });
 
-    if (authStatus) {
-      // Load user from localStorage
-      const savedUser = getUser();
-      if (savedUser) {
-        // Ensure user has an id for Supabase operations
-        const userWithId = {
-          ...savedUser,
-          id: savedUser.id || savedUser.username // Use username as ID if no ID exists
-        };
-        setCurrentUser(userWithId);
-        setUser(userWithId);
-      } else {
-        // Create default user if authenticated but no user data
-        const defaultUser: User = {
-          id: USER, // Use username as ID
-          username: USER,
-          theme: 'light',
-        };
-        setCurrentUser(defaultUser);
-        setUser(defaultUser);
-      }
-    }
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setIsAuthenticated(!!session?.user);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const handleLogin = (username: string, password: string): boolean => {
-    if (username === USER && password === PASSWORD) {
-      const newUser: User = {
-        id: username, // Use username as ID
-        username: username,
-        theme: 'light',
-      };
-      setCurrentUser(newUser);
-      setUser(newUser);
-      setAuthenticated(true);
-      setIsAuthenticated(true);
-      toast.success("Login realizado com sucesso!");
-      return true;
-    } else {
-      toast.error("Credenciais inválidas!");
-      return false;
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      toast.success("Logout realizado com sucesso!");
+    } catch (error: any) {
+      toast.error("Erro ao realizar logout: " + error.message);
     }
-  };
-
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setIsAuthenticated(false);
-    logout();
-    toast.info("Logout realizado com sucesso.");
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        login: handleLogin,
         logout: handleLogout,
-        isAuthenticated: authenticated,
+        isAuthenticated,
       }}
     >
       {children}
