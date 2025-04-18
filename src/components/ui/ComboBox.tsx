@@ -27,7 +27,10 @@ interface ComboBoxProps {
 export function ComboBox({ items, placeholder, value, onSelect, className }: ComboBoxProps) {
   const [open, setOpen] = useState(false);
   
-  const selectedItem = items.find((item) => item.value === value);
+  // Ensure items is always an array
+  const safeItems = Array.isArray(items) ? items : [];
+  
+  const selectedItem = safeItems.find((item) => item.value === value);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -49,7 +52,7 @@ export function ComboBox({ items, placeholder, value, onSelect, className }: Com
           <CommandInput placeholder={`Buscar ${placeholder.toLowerCase()}...`} />
           <CommandEmpty>Nenhum item encontrado.</CommandEmpty>
           <CommandGroup className="max-h-60 overflow-auto">
-            {items.map((item) => (
+            {safeItems.map((item) => (
               <CommandItem
                 key={item.value}
                 value={item.value}
