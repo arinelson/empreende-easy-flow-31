@@ -227,9 +227,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       toast.info("Sincronizando com Google Sheets...");
       
-      const financeiroUrl = getScriptUrl('financeiro');
-      const clientesUrl = getScriptUrl('clientes');
-      const operacoesUrl = getScriptUrl('operacoes');
+      const financeiroUrl = localStorage.getItem('financeiro_script_url');
+      const clientesUrl = localStorage.getItem('clientes_script_url');
+      const operacoesUrl = localStorage.getItem('operacoes_script_url');
+      
+      console.log("URLs de scripts a serem usadas:", {
+        financeiro: financeiroUrl,
+        clientes: clientesUrl,
+        operacoes: operacoesUrl
+      });
       
       if (!financeiroUrl || !clientesUrl || !operacoesUrl) {
         throw new Error("URLs dos scripts não configuradas. Configure-as em Configurações > Integrações.");

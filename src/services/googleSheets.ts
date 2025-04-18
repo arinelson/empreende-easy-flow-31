@@ -1,4 +1,3 @@
-
 import { 
   FinancialTransaction, 
   Customer, 
@@ -19,9 +18,9 @@ export let OPERACOES_SHEET_URL = "https://docs.google.com/spreadsheets/d/1zMwckW
 
 // URLs dos scripts para cada planilha (configurável pelo usuário)
 export let scriptUrls = {
-  financeiro: FINANCEIRO_SCRIPT_URL,
-  clientes: CLIENTES_SCRIPT_URL,
-  operacoes: OPERACOES_SCRIPT_URL
+  financeiro: localStorage.getItem('financeiro_script_url') || FINANCEIRO_SCRIPT_URL,
+  clientes: localStorage.getItem('clientes_script_url') || CLIENTES_SCRIPT_URL,
+  operacoes: localStorage.getItem('operacoes_script_url') || OPERACOES_SCRIPT_URL
 };
 
 // Current CORS method to use for requests
@@ -309,27 +308,16 @@ export function updateScriptUrls(
   });
 }
 
-// Carregar URLs salvas no localStorage ao inicializar
-(function loadSavedUrls() {
-  const financeiroScript = localStorage.getItem('financeiro_script_url');
-  const clientesScript = localStorage.getItem('clientes_script_url');
-  const operacoesScript = localStorage.getItem('operacoes_script_url');
-  
-  const financeiroSheet = localStorage.getItem('financeiro_sheet_url');
-  const clientesSheet = localStorage.getItem('clientes_sheet_url');
-  const operacoesSheet = localStorage.getItem('operacoes_sheet_url');
-  
-  if (financeiroScript) scriptUrls.financeiro = financeiroScript;
-  if (clientesScript) scriptUrls.clientes = clientesScript;
-  if (operacoesScript) scriptUrls.operacoes = operacoesScript;
-  
-  if (financeiroSheet) FINANCEIRO_SHEET_URL = financeiroSheet;
-  if (clientesSheet) CLIENTES_SHEET_URL = clientesSheet;
-  if (operacoesSheet) OPERACOES_SHEET_URL = operacoesSheet;
-})();
-
 // Função auxiliar para obter a URL do script correta com base no tipo
 export function getScriptUrl(type: 'financeiro' | 'clientes' | 'operacoes'): string {
+  // Primeiro verificar no localStorage, depois no objeto scriptUrls
+  const urlFromLocalStorage = localStorage.getItem(`${type}_script_url`);
+  
+  if (urlFromLocalStorage && urlFromLocalStorage.trim() !== '') {
+    return urlFromLocalStorage;
+  }
+  
+  // Se não estiver no localStorage, usar o valor atual do objeto
   return scriptUrls[type];
 }
 
