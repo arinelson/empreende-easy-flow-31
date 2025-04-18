@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -28,7 +27,7 @@ import { toast } from "sonner";
 
 const Configuracoes = () => {
   const { theme, setTheme } = useTheme();
-  const { clearData, syncWithSheet } = useData();
+  const { clearData, refreshData } = useData();
   const { user } = useAuth();
   
   // Form state
@@ -136,7 +135,7 @@ const Configuracoes = () => {
                   <Button 
                     variant="outline" 
                     className="flex items-center gap-2"
-                    onClick={syncWithSheet}
+                    onClick={refreshData}
                   >
                     <RefreshCcw className="h-4 w-4" />
                     Sincronizar

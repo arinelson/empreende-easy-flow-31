@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { useData } from "@/contexts/DataContext";
@@ -17,7 +16,7 @@ import { Customer } from "@/types/models";
 import EditCustomerDialog from "@/components/clientes/EditCustomerDialog";
 
 const Clientes = () => {
-  const { customers, addCustomer, updateCustomer, deleteCustomer, exportToSheet, syncWithSheet } = useData();
+  const { customers, addCustomer, updateCustomer, deleteCustomer, exportToExcel, refreshData } = useData();
   const [searchQuery, setSearchQuery] = useState("");
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -124,7 +123,7 @@ const Clientes = () => {
           
           <div className="flex gap-2">
             <Button
-              onClick={() => syncWithSheet()}
+              onClick={() => refreshData()}
               variant="outline"
               className="flex gap-2 items-center"
             >
@@ -132,7 +131,7 @@ const Clientes = () => {
               Sincronizar
             </Button>
             <Button 
-              onClick={() => exportToSheet('customers')} 
+              onClick={() => exportToExcel('customers')} 
               variant="outline" 
               className="flex gap-2 items-center"
             >

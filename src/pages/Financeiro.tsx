@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { useData } from "@/contexts/DataContext";
@@ -27,8 +26,8 @@ const Financeiro = () => {
     addTransaction, 
     updateTransaction,
     deleteTransaction,
-    exportToSheet,
-    syncWithSheet,
+    exportToExcel,
+    refreshData,
     dashboardSummary
   } = useData();
   
@@ -181,7 +180,7 @@ const Financeiro = () => {
           
           <div className="flex flex-wrap gap-2 w-full md:w-auto">
             <Button
-              onClick={() => syncWithSheet()}
+              onClick={() => refreshData()}
               variant="outline"
               className="flex gap-2 items-center"
             >
@@ -189,7 +188,7 @@ const Financeiro = () => {
               <span className="hidden sm:inline">Sincronizar</span>
             </Button>
             <Button 
-              onClick={() => exportToSheet('transactions')} 
+              onClick={() => exportToExcel('transactions')} 
               variant="outline" 
               className="flex gap-2 items-center"
             >

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { useData } from "@/contexts/DataContext";
@@ -16,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 
 const Operacoes = () => {
-  const { products, addProduct, deleteProduct, exportToSheet } = useData();
+  const { products, addProduct, deleteProduct, exportToExcel } = useData();
   const [searchQuery, setSearchQuery] = useState("");
   const [openAddDialog, setOpenAddDialog] = useState(false);
   
@@ -111,7 +110,7 @@ const Operacoes = () => {
           
           <div className="flex gap-2">
             <Button 
-              onClick={() => exportToSheet('products')} 
+              onClick={() => exportToExcel('products')} 
               variant="outline" 
               className="flex gap-2 items-center"
             >

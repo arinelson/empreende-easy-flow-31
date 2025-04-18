@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { 
   FinancialTransaction, 
@@ -19,7 +20,7 @@ import {
 } from "@/services/localStorage";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   toAppTransaction,
@@ -31,6 +32,7 @@ import {
   toAppSupplier,
   toDbSupplier
 } from "@/types/supabase";
+import * as XLSX from 'xlsx';
 
 interface DataContextType {
   transactions: FinancialTransaction[];
@@ -54,6 +56,7 @@ interface DataContextType {
   clearData: () => void;
   isLoading: boolean;
   refreshData: () => Promise<void>;
+  exportToExcel: (dataType: 'transactions' | 'customers' | 'products' | 'suppliers') => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -117,8 +120,47 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  // Export to Excel functionality
+  const exportToExcel = (dataType: 'transactions' | 'customers' | 'products' | 'suppliers') => {
+    try {
+      let dataToExport: any[] = [];
+      let fileName = '';
+
+      switch (dataType) {
+        case 'transactions':
+          dataToExport = transactions;
+          fileName = 'transacoes';
+          break;
+        case 'customers':
+          dataToExport = customers;
+          fileName = 'clientes';
+          break;
+        case 'products':
+          dataToExport = products;
+          fileName = 'produtos';
+          break;
+        case 'suppliers':
+          dataToExport = suppliers;
+          fileName = 'fornecedores';
+          break;
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Dados');
+      
+      // Generate file and trigger download
+      XLSX.writeFile(workbook, `${fileName}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      
+      toast.success('Dados exportados com sucesso!');
+    } catch (error) {
+      console.error('Erro ao exportar dados:', error);
+      toast.error('Erro ao exportar dados');
+    }
+  };
+
   const refreshData = async () => {
-    if (!user) return;
+    if (!user?.id) return;
     
     setIsLoading(true);
     try {
@@ -191,7 +233,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     saveTransactions(updatedTransactions);
 
     // Save to Supabase if user is logged in
-    if (user) {
+    if (user?.id) {
       try {
         const { error } = await supabase
           .from('transactions')
@@ -217,7 +259,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     saveTransactions(updatedTransactions);
 
     // Update in Supabase if user is logged in
-    if (user) {
+    if (user?.id) {
       try {
         const transaction = updatedTransactions.find(t => t.id === id);
         if (transaction) {
@@ -246,7 +288,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     saveTransactions(updatedTransactions);
 
     // Delete from Supabase if user is logged in
-    if (user) {
+    if (user?.id) {
       try {
         const { error } = await supabase
           .from('transactions')
@@ -276,7 +318,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     saveCustomers(updatedCustomers);
 
     // Save to Supabase if user is logged in
-    if (user) {
+    if (user?.id) {
       try {
         const { error } = await supabase
           .from('customers')
@@ -302,7 +344,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     saveCustomers(updatedCustomers);
 
     // Update in Supabase if user is logged in
-    if (user) {
+    if (user?.id) {
       try {
         const customer = updatedCustomers.find(c => c.id === id);
         if (customer) {
@@ -331,7 +373,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     saveCustomers(updatedCustomers);
 
     // Delete from Supabase if user is logged in
-    if (user) {
+    if (user?.id) {
       try {
         const { error } = await supabase
           .from('customers')
@@ -361,7 +403,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     saveProducts(updatedProducts);
 
     // Save to Supabase if user is logged in
-    if (user) {
+    if (user?.id) {
       try {
         const { error } = await supabase
           .from('products')
@@ -387,7 +429,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     saveProducts(updatedProducts);
 
     // Update in Supabase if user is logged in
-    if (user) {
+    if (user?.id) {
       try {
         const product = updatedProducts.find(p => p.id === id);
         if (product) {
@@ -416,7 +458,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     saveProducts(updatedProducts);
 
     // Delete from Supabase if user is logged in
-    if (user) {
+    if (user?.id) {
       try {
         const { error } = await supabase
           .from('products')
@@ -446,7 +488,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     saveSuppliers(updatedSuppliers);
 
     // Save to Supabase if user is logged in
-    if (user) {
+    if (user?.id) {
       try {
         const { error } = await supabase
           .from('suppliers')
@@ -472,7 +514,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     saveSuppliers(updatedSuppliers);
 
     // Update in Supabase if user is logged in
-    if (user) {
+    if (user?.id) {
       try {
         const supplier = updatedSuppliers.find(s => s.id === id);
         if (supplier) {
@@ -501,7 +543,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     saveSuppliers(updatedSuppliers);
 
     // Delete from Supabase if user is logged in
-    if (user) {
+    if (user?.id) {
       try {
         const { error } = await supabase
           .from('suppliers')
@@ -520,7 +562,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const syncWithDatabase = async () => {
-    if (!user) {
+    if (!user?.id) {
       toast.warning("Você precisa estar logado para sincronizar com o banco de dados");
       return;
     }
@@ -588,7 +630,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       clearAllData();
 
       // Delete from Supabase if user is logged in
-      if (user) {
+      if (user?.id) {
         setIsLoading(true);
         try {
           toast.info("Removendo dados do banco de dados...");
@@ -661,6 +703,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         clearData,
         isLoading,
         refreshData,
+        exportToExcel,
       }}
     >
       {children}
