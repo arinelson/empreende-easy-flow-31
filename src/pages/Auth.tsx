@@ -16,6 +16,7 @@ const Auth = () => {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
+    username: "" // Adicionado campo de username
   });
 
   const handleSubmit = async (e: FormEvent) => {
@@ -24,13 +25,30 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        const { error, data } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
+          options: {
+            data: {
+              username: formData.username || formData.email.split('@')[0]
+            }
+          }
         });
         
         if (error) throw error;
-        toast.success("Conta criada com sucesso! Por favor, verifique seu email.");
+        
+        // Criar perfil após signup
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: data.user?.id,
+            username: formData.username || formData.email.split('@')[0],
+          });
+
+        if (profileError) throw profileError;
+        
+        toast.success("Conta criada com sucesso! Faça login.");
+        setIsSignUp(false); // Mudar para login
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: formData.email,
@@ -61,6 +79,20 @@ const Auth = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="username">Nome de Usuário</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="Seu nome de usuário"
+                  value={formData.username}
+                  onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
+                  required
+                />
+              </div>
+            )}
+            
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
