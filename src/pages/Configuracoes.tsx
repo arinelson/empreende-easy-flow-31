@@ -24,11 +24,12 @@ import {
   updateScriptUrls 
 } from "@/services/googleSheets";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 const Configuracoes = () => {
   const { theme, setTheme } = useTheme();
   const { clearData, refreshData } = useData();
-  const { user } = useAuth();
+  const { userProfile } = useAuth();
   
   // Form state
   const [financeiroUrl, setFinanceiroUrl] = useState(FINANCEIRO_SHEET_URL);
@@ -39,8 +40,39 @@ const Configuracoes = () => {
   const [clientesScriptUrl, setClientesScriptUrl] = useState(CLIENTES_SCRIPT_URL);
   const [operacoesScriptUrl, setOperacoesScriptUrl] = useState(OPERACOES_SCRIPT_URL);
   
-  const [username, setUsername] = useState(user?.username || "");
-  const [avatar, setAvatar] = useState(user?.avatar || "");
+  const [username, setUsername] = useState(userProfile?.username || "");
+  const [avatar, setAvatar] = useState(userProfile?.avatar || "");
+  
+  // Update the form when userProfile changes
+  useEffect(() => {
+    if (userProfile) {
+      setUsername(userProfile.username || "");
+      setAvatar(userProfile.avatar || "");
+    }
+  }, [userProfile]);
+  
+  const saveUserProfile = async () => {
+    if (!userProfile?.id) {
+      toast.error("Você precisa estar logado para salvar as alterações.");
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: userProfile.id,
+          username,
+          avatar
+        });
+        
+      if (error) throw error;
+      toast.success("Perfil atualizado com sucesso!");
+    } catch (error: any) {
+      console.error("Erro ao atualizar perfil:", error);
+      toast.error("Erro ao salvar perfil: " + error.message);
+    }
+  };
   
   const saveIntegrationSettings = () => {
     try {
@@ -193,7 +225,10 @@ const Configuracoes = () => {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button className="flex items-center gap-2">
+                <Button 
+                  className="flex items-center gap-2"
+                  onClick={saveUserProfile}
+                >
                   <Save className="h-4 w-4" />
                   Salvar Alterações
                 </Button>
