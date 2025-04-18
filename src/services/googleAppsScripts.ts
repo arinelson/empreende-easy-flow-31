@@ -1,39 +1,21 @@
-
-// Códigos para inserir no Google Apps Script para cada planilha
-
 export const financeiroSheetScript = `
-/**
- * Script para Planilha de Finanças
- */
-
 function doGet(e) {
-  return handleRequest(e);
-}
-
-function doPost(e) {
-  return handleRequest(e);
-}
-
-function handleRequest(e) {
-  // Configurar resposta JSON com CORS adequado
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
   
-  // Lidar com solicitações OPTIONS (pré-verificação CORS)
   if (e && e.parameter && e.parameter.method === 'options') {
-    var responseText = JSON.stringify({
+    output.setContent(JSON.stringify({
       status: 'ok',
       message: 'CORS preflight handled'
-    });
-    output.setContent(responseText);
+    }));
     return output;
   }
-  
+
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName('Transacoes') || ss.insertSheet('Transacoes');
     
-    // Verificar se a planilha já tem cabeçalhos, caso não, criar
+    // Verificar se a planilha já tem cabeçalhos
     if (sheet.getLastRow() === 0) {
       var headers = [
         'ID', 'Data', 'Tipo', 'Descrição', 'Categoria', 
@@ -41,21 +23,39 @@ function handleRequest(e) {
         'Produtos', 'ProdutoIDs', 'Status', 'Notas', 
         'Reembolsável', 'Transação Relacionada'
       ];
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      
-      // Formatar cabeçalhos
-      sheet.getRange(1, 1, 1, headers.length)
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers])
         .setBackground('#4285f4')
         .setFontColor('#ffffff')
         .setFontWeight('bold');
     }
-    
-    var action = e && e.parameter ? e.parameter.action : null;
+
+    output.setContent(JSON.stringify({
+      success: true,
+      message: "O serviço Financeiro está online e pronto para receber dados via POST."
+    }));
+    return output;
+  } catch (error) {
+    output.setContent(JSON.stringify({
+      success: false,
+      error: error.toString()
+    }));
+    return output;
+  }
+}
+
+function doPost(e) {
+  var output = ContentService.createTextOutput();
+  output.setMimeType(ContentService.MimeType.JSON);
+
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Transacoes') || ss.insertSheet('Transacoes');
+    var action = e.parameter ? e.parameter.action : null;
     var result = {};
-    
+
     // Log da ação para debugging
     Logger.log('Ação recebida: ' + action);
-    
+
     // Verificar se está online
     if (!action) {
       result = {
@@ -63,7 +63,7 @@ function handleRequest(e) {
         message: "O serviço Financeiro está online e pronto para receber dados via POST."
       };
     }
-    
+
     // Exportar transações para a planilha
     else if (action === 'exportTransactions' && e.postData) {
       var data = JSON.parse(e.postData.contents);
@@ -109,7 +109,7 @@ function handleRequest(e) {
         message: 'Transações exportadas com sucesso!'
       };
     }
-    
+
     // Importar transações da planilha
     else if (action === 'importTransactions') {
       var dataRange = sheet.getDataRange();
@@ -156,7 +156,7 @@ function handleRequest(e) {
         };
       }
     }
-    
+
     // Sincronizar todas as transações
     else if (action === 'syncTransactions' && e.postData) {
       var data = JSON.parse(e.postData.contents);
@@ -232,7 +232,7 @@ function handleRequest(e) {
         message: 'Transações sincronizadas com sucesso!'
       };
     }
-    
+
     else {
       result = {
         success: false,
@@ -253,7 +253,7 @@ function handleRequest(e) {
   }
 }
 
-// Função para mesclar transações do app com transações da planilha
+// Funç��o para mesclar transações do app com transações da planilha
 function mergeTransactions(appTransactions, sheetTransactions) {
   var mergedMap = {};
   
@@ -285,59 +285,62 @@ function mergeTransactions(appTransactions, sheetTransactions) {
 `;
 
 export const clientesSheetScript = `
-/**
- * Script para Planilha de Clientes
- */
-
 function doGet(e) {
-  return handleRequest(e);
-}
-
-function doPost(e) {
-  return handleRequest(e);
-}
-
-function handleRequest(e) {
-  // Configurar resposta JSON com CORS adequado
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
   
-  // Lidar com solicitações OPTIONS (pré-verificação CORS)
   if (e && e.parameter && e.parameter.method === 'options') {
-    var responseText = JSON.stringify({
+    output.setContent(JSON.stringify({
       status: 'ok',
       message: 'CORS preflight handled'
-    });
-    output.setContent(responseText);
+    }));
     return output;
   }
-  
+
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName('Clientes') || ss.insertSheet('Clientes');
     
-    // Verificar se a planilha já tem cabeçalhos, caso não, criar
+    // Verificar se a planilha já tem cabeçalhos
     if (sheet.getLastRow() === 0) {
       var headers = [
-        'ID', 'Nome', 'Email', 'Telefone', 'Endereço', 
-        'Data de Cadastro', 'Total de Compras', 'Última Compra',
+        'ID', 'Nome', 'Email', 'Telefone', 'Endereço',
+        'Data Cadastro', 'Total Compras', 'Última Compra',
         'Observações', 'Status', 'CPF/CNPJ', 'Categoria'
       ];
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      
-      // Formatar cabeçalhos
-      sheet.getRange(1, 1, 1, headers.length)
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers])
         .setBackground('#4285f4')
         .setFontColor('#ffffff')
         .setFontWeight('bold');
     }
-    
-    var action = e && e.parameter ? e.parameter.action : null;
+
+    output.setContent(JSON.stringify({
+      success: true,
+      message: "O serviço Clientes está online e pronto para receber dados via POST."
+    }));
+    return output;
+  } catch (error) {
+    output.setContent(JSON.stringify({
+      success: false,
+      error: error.toString()
+    }));
+    return output;
+  }
+}
+
+function doPost(e) {
+  var output = ContentService.createTextOutput();
+  output.setMimeType(ContentService.MimeType.JSON);
+
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Clientes') || ss.insertSheet('Clientes');
+    var action = e.parameter ? e.parameter.action : null;
     var result = {};
-    
+
     // Log da ação
     Logger.log('Ação recebida: ' + action);
-    
+
     // Verificar se está online
     if (!action) {
       result = {
@@ -345,7 +348,7 @@ function handleRequest(e) {
         message: "O serviço Clientes está online e pronto para receber dados via POST."
       };
     }
-    
+
     // Exportar clientes para a planilha
     else if (action === 'exportCustomers' && e.postData) {
       var data = JSON.parse(e.postData.contents);
@@ -388,7 +391,7 @@ function handleRequest(e) {
         message: 'Clientes exportados com sucesso!'
       };
     }
-    
+
     // Importar clientes da planilha
     else if (action === 'importCustomers') {
       var dataRange = sheet.getDataRange();
@@ -432,7 +435,7 @@ function handleRequest(e) {
         };
       }
     }
-    
+
     // Sincronizar todos os clientes
     else if (action === 'syncCustomers' && e.postData) {
       var data = JSON.parse(e.postData.contents);
@@ -502,7 +505,7 @@ function handleRequest(e) {
         message: 'Clientes sincronizados com sucesso!'
       };
     }
-    
+
     else {
       result = {
         success: false,
@@ -555,33 +558,18 @@ function mergeCustomers(appCustomers, sheetCustomers) {
 `;
 
 export const operacoesSheetScript = `
-/**
- * Script para Planilha de Operações
- */
-
 function doGet(e) {
-  return handleRequest(e);
-}
-
-function doPost(e) {
-  return handleRequest(e);
-}
-
-function handleRequest(e) {
-  // Configurar resposta JSON com CORS adequado
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
   
-  // Lidar com solicitações OPTIONS (pré-verificação CORS)
   if (e && e.parameter && e.parameter.method === 'options') {
-    var responseText = JSON.stringify({
+    output.setContent(JSON.stringify({
       status: 'ok',
       message: 'CORS preflight handled'
-    });
-    output.setContent(responseText);
+    }));
     return output;
   }
-  
+
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var productsSheet = ss.getSheetByName('Produtos') || ss.insertSheet('Produtos');
@@ -592,12 +580,9 @@ function handleRequest(e) {
       var productHeaders = [
         'ID', 'Nome', 'Descrição', 'Preço', 'Custo',
         'Estoque', 'Categoria', 'Estoque Mínimo',
-        'Fornecedor', 'Código de Barras', 'Data de Cadastro'
+        'Fornecedor', 'Código de Barras', 'Data Cadastro'
       ];
-      productsSheet.getRange(1, 1, 1, productHeaders.length).setValues([productHeaders]);
-      
-      // Formatar cabeçalhos
-      productsSheet.getRange(1, 1, 1, productHeaders.length)
+      productsSheet.getRange(1, 1, 1, productHeaders.length).setValues([productHeaders])
         .setBackground('#4285f4')
         .setFontColor('#ffffff')
         .setFontWeight('bold');
@@ -609,21 +594,40 @@ function handleRequest(e) {
         'ID', 'Nome', 'Contato', 'Email', 'Telefone',
         'Endereço', 'Produtos', 'CNPJ', 'Categoria'
       ];
-      suppliersSheet.getRange(1, 1, 1, supplierHeaders.length).setValues([supplierHeaders]);
-      
-      // Formatar cabeçalhos
-      suppliersSheet.getRange(1, 1, 1, supplierHeaders.length)
+      suppliersSheet.getRange(1, 1, 1, supplierHeaders.length).setValues([supplierHeaders])
         .setBackground('#4285f4')
         .setFontColor('#ffffff')
         .setFontWeight('bold');
     }
-    
-    var action = e && e.parameter ? e.parameter.action : null;
+
+    output.setContent(JSON.stringify({
+      success: true,
+      message: "O serviço Operações está online e pronto para receber dados via POST."
+    }));
+    return output;
+  } catch (error) {
+    output.setContent(JSON.stringify({
+      success: false,
+      error: error.toString()
+    }));
+    return output;
+  }
+}
+
+function doPost(e) {
+  var output = ContentService.createTextOutput();
+  output.setMimeType(ContentService.MimeType.JSON);
+
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var productsSheet = ss.getSheetByName('Produtos') || ss.insertSheet('Produtos');
+    var suppliersSheet = ss.getSheetByName('Fornecedores') || ss.insertSheet('Fornecedores');
+    var action = e.parameter ? e.parameter.action : null;
     var result = {};
-    
+
     // Log da ação
     Logger.log('Ação recebida: ' + action);
-    
+
     // Verificar se está online
     if (!action) {
       result = {
@@ -631,7 +635,7 @@ function handleRequest(e) {
         message: "O serviço Operações está online e pronto para receber dados via POST."
       };
     }
-    
+
     // Exportar produtos para a planilha
     else if (action === 'exportProducts' && e.postData) {
       var data = JSON.parse(e.postData.contents);
@@ -673,7 +677,7 @@ function handleRequest(e) {
         message: 'Produtos exportados com sucesso!'
       };
     }
-    
+
     // Sincronizar operações (produtos e fornecedores)
     else if (action === 'syncOperations' && e.postData) {
       var data = JSON.parse(e.postData.contents);
@@ -797,7 +801,7 @@ function handleRequest(e) {
         message: 'Operações sincronizadas com sucesso!'
       };
     }
-    
+
     // Importar operações da planilha
     else if (action === 'importOperations') {
       // Importar produtos
@@ -864,7 +868,7 @@ function handleRequest(e) {
         }
       };
     }
-    
+
     else {
       result = {
         success: false,
@@ -951,35 +955,29 @@ export const sheetIntegrationInstructions = `
 
 Para integrar o sistema com o Google Sheets, siga estes passos para cada planilha:
 
-1. Acesse as planilhas do Google que você criou:
-   - Financeiro: https://docs.google.com/spreadsheets/d/1nOj6f8jrx5P10KcNDhkJxnd0303J3ktT5SE3-ie4wjM/edit?gid=0
-   - Clientes: https://docs.google.com/spreadsheets/d/1ivmrRgpduYwyV9kXc3jpj9TdjMGAgwGo8akhiWimOzc/edit?gid=0
-   - Operações: https://docs.google.com/spreadsheets/d/1zMwckW0sLR03lJ89rKQvHRQnjj-JEjVcinztAit6Zi4/edit?gid=0
+1. Acesse cada uma das suas planilhas do Google (Financeiro, Clientes e Operações)
 
-2. Para cada planilha:
+2. Em cada planilha:
    a. Clique em Extensões > Apps Script
-   b. Limpe qualquer código existente
-   c. Cole o código correspondente para cada planilha (financeiroSheetScript, clientesSheetScript, ou operacoesSheetScript)
-   d. Salve o projeto com um nome relacionado (ex: "Integracao Financeiro")
-   e. Clique em "Implantar" > "Nova implantação"
-   f. Selecione "Aplicativo da web"
-   g. Configure:
+   b. Cole o código correspondente para cada planilha
+   c. Salve o projeto
+   d. Clique em "Implantar" > "Nova implantação"
+   e. Selecione "Aplicativo da web"
+   f. Configure:
       - Execute como: Eu mesmo (seu email)
       - Quem tem acesso: Qualquer pessoa
-   h. Clique em "Implantar"
-   i. Copie a URL do aplicativo da web gerado
-   j. No aplicativo, cole essa URL no campo correspondente em Configurações > Integrações
+   g. Clique em "Implantar"
+   h. Autorize o aplicativo quando solicitado
+   i. Copie a URL do aplicativo da web gerada
 
-3. IMPORTANTE: O código foi atualizado para corrigir o erro "output.addHeader is not a function". O novo código usa ContentService.createTextOutput() e setContent() para lidar com CORS de forma adequada.
+3. No sistema:
+   - Cole cada URL no campo correspondente em Configurações > Integrações
+   - Salve as configurações
+   - Teste a sincronização usando o botão "Sincronizar com Google Sheets"
 
-4. Testando a integração:
-   - Após configurar todas as URLs, clique em "Salvar configurações"
-   - No Dashboard, use o botão "Sincronizar com Google Sheets" para testar
-   - Se ocorrerem erros, verifique os logs do Apps Script (no editor do Apps Script, vá em "Ver" > "Logs")
-   - Também pode testar visitando diretamente a URL do script no navegador para verificar se a resposta é "O serviço X está online e pronto para receber dados via POST"
-
-5. Dicas de solução de problemas:
-   - Se ainda tiver problemas com CORS, talvez seja necessário ajustar as configurações de CORS no método no aplicativo
-   - Certifique-se de que todas as URLs estão corretamente configuradas
-   - Verifique se as permissões do Google Sheets permitem acesso público
+4. Para verificar se está funcionando:
+   - Faça uma alteração no sistema e sincronize
+   - Verifique se os dados aparecem nas planilhas
+   - Faça uma alteração nas planilhas e sincronize
+   - Verifique se os dados são atualizados no sistema
 `;
