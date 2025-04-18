@@ -24,7 +24,7 @@ interface ComboBoxProps {
   className?: string;
 }
 
-export function ComboBox({ items, placeholder, value, onSelect, className }: ComboBoxProps) {
+export function ComboBox({ items = [], placeholder, value, onSelect, className }: ComboBoxProps) {
   const [open, setOpen] = useState(false);
   
   // Ensure items is always an array
