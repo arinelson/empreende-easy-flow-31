@@ -5,7 +5,7 @@ import { RecentTransactions } from "@/components/dashboard/RecentTransactions";
 import { Button } from "@/components/ui/button";
 import { useData } from "@/contexts/DataContext";
 import { Download, ExternalLink, AlertCircle, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { syncLog, testCorsMethod, setCorsMethod, getCurrentCorsMethod, CorsMethod } from "@/services/googleSheets";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,13 +14,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 
 const corsMethodOptions: { value: CorsMethod, label: string }[] = [
-  { value: 'direct', label: 'Direto (Padrão)' },
+  { value: 'direct', label: 'Direto' },
   { value: 'proxy', label: 'Proxy CORS' },
   { value: 'no-cors', label: 'No-CORS Mode' },
   { value: 'no-cache', label: 'No-Cache' },
   { value: 'xhr', label: 'XMLHttpRequest' },
   { value: 'jsonp', label: 'JSONP' },
-  { value: 'iframe', label: 'IFrame' }
+  { value: 'iframe', label: 'IFrame (Recomendado)' }
 ];
 
 const Dashboard = () => {
@@ -31,12 +31,12 @@ const Dashboard = () => {
   const [isTesting, setIsTesting] = useState(false);
   const [currentMethod, setCurrentMethod] = useState<CorsMethod>(getCurrentCorsMethod());
 
-  const runDiagnostic = async () => {
+  const runDiagnostic = useCallback(async () => {
     setIsTesting(true);
     setTestResults([]);
     toast.info("Executando diagnóstico de CORS...");
     
-    const methods: CorsMethod[] = ['direct', 'proxy', 'no-cors', 'no-cache', 'xhr'];
+    const methods: CorsMethod[] = ['direct', 'proxy', 'no-cors', 'no-cache', 'xhr', 'iframe'];
     const results = [];
     
     for (const method of methods) {
@@ -66,22 +66,38 @@ const Dashboard = () => {
     // Encontrar o melhor método
     const successfulMethods = results.filter(r => r.success);
     if (successfulMethods.length > 0) {
-      const bestMethod = successfulMethods[0].method;
+      // Priorize iframe se estiver entre os métodos bem-sucedidos
+      const iframeMethod = successfulMethods.find(m => m.method === 'iframe');
+      const bestMethod = iframeMethod ? iframeMethod.method : successfulMethods[0].method;
+      
       setCorsMethod(bestMethod);
       setCurrentMethod(bestMethod);
       toast.success(`Método CORS ideal encontrado: ${bestMethod}`);
     } else {
-      toast.error("Nenhum método CORS foi bem-sucedido. Tente novamente mais tarde.");
+      toast.error("Nenhum método CORS foi bem-sucedido. Por padrão, usaremos iframe.");
+      setCorsMethod('iframe');
+      setCurrentMethod('iframe');
     }
     
     setIsTesting(false);
-  };
+  }, []);
 
-  const changeMethod = (method: CorsMethod) => {
+  const changeMethod = useCallback((method: CorsMethod) => {
     setCorsMethod(method);
     setCurrentMethod(method);
     toast.success(`Método de sincronização alterado para: ${method}`);
-  };
+  }, []);
+
+  // Função para sincronizar com segurança, evitando bugs
+  const handleSync = useCallback(async () => {
+    try {
+      await syncWithSheet();
+      toast.success("Sincronização concluída com sucesso!");
+    } catch (error) {
+      toast.error(`Erro na sincronização: ${error instanceof Error ? error.message : String(error)}`);
+      console.error("Erro na sincronização:", error);
+    }
+  }, [syncWithSheet]);
 
   return (
     <PageLayout>
@@ -104,7 +120,7 @@ const Dashboard = () => {
               {showLogs ? "Ocultar logs" : "Ver logs"}
             </Button>
             <Button 
-              onClick={syncWithSheet} 
+              onClick={handleSync} 
               disabled={isLoading}
               className="whitespace-nowrap flex gap-2 items-center"
               size="sm"
@@ -138,8 +154,8 @@ const Dashboard = () => {
                             <div className="flex gap-2 justify-between text-xs text-muted-foreground">
                               <span>{new Date(log.timestamp).toLocaleString()}</span>
                               <span className={`font-medium ${
-                                log.status.includes('Erro') ? 'text-destructive' : 
-                                log.status.includes('Sucesso') ? 'text-green-500' : ''
+                                log.status.includes('Erro') || log.status === 'error' ? 'text-destructive' : 
+                                log.status.includes('Sucesso') || log.status === 'success' ? 'text-green-500' : ''
                               }`}>{log.status}</span>
                             </div>
                             <div className="font-medium">{log.action}</div>
@@ -161,7 +177,8 @@ const Dashboard = () => {
                       <AlertCircle className="h-4 w-4" />
                       <AlertTitle>Método CORS atual: {currentMethod}</AlertTitle>
                       <AlertDescription>
-                        O método atual é usado para todas as operações de sincronização.
+                        O método atual é usado para todas as operações de sincronização. 
+                        Recomendamos usar o método "iframe" para maior compatibilidade.
                       </AlertDescription>
                     </Alert>
                     
@@ -214,7 +231,7 @@ const Dashboard = () => {
               </Tabs>
             </CardHeader>
             <CardContent>
-              {/* Card content is now empty as we've moved the content into the TabsContent components */}
+              {/* Card content vazio, pois movemos o conteúdo para TabsContent */}
             </CardContent>
           </Card>
         )}

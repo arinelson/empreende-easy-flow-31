@@ -1,21 +1,33 @@
+
 export const financeiroSheetScript = `
+/**
+ * Script para integração com planilha de Financeiro
+ * 
+ * IMPORTANTE: Este script deve ser salvo no Apps Script da planilha e publicado como aplicativo web
+ * com acesso para "Qualquer pessoa, mesmo anônima"
+ */
+
 function doGet(e) {
+  return handleRequest(e);
+}
+
+function doPost(e) {
+  return handleRequest(e);
+}
+
+function handleRequest(e) {
+  // Configurar resposta JSON
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
   
-  if (e && e.parameter && e.parameter.method === 'options') {
-    output.setContent(JSON.stringify({
-      status: 'ok',
-      message: 'CORS preflight handled'
-    }));
-    return output;
-  }
-
+  // Verificar se a solicitação veio de um iframe
+  var isIframe = e && e.parameter && e.parameter._iframe;
+  
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName('Transacoes') || ss.insertSheet('Transacoes');
     
-    // Verificar se a planilha já tem cabeçalhos
+    // Verificar se a planilha já tem cabeçalhos, caso não, criar
     if (sheet.getLastRow() === 0) {
       var headers = [
         'ID', 'Data', 'Tipo', 'Descrição', 'Categoria', 
@@ -23,50 +35,40 @@ function doGet(e) {
         'Produtos', 'ProdutoIDs', 'Status', 'Notas', 
         'Reembolsável', 'Transação Relacionada'
       ];
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers])
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      
+      // Formatar cabeçalhos
+      sheet.getRange(1, 1, 1, headers.length)
         .setBackground('#4285f4')
         .setFontColor('#ffffff')
         .setFontWeight('bold');
     }
-
-    output.setContent(JSON.stringify({
-      success: true,
-      message: "O serviço Financeiro está online e pronto para receber dados via POST."
-    }));
-    return output;
-  } catch (error) {
-    output.setContent(JSON.stringify({
-      success: false,
-      error: error.toString()
-    }));
-    return output;
-  }
-}
-
-function doPost(e) {
-  var output = ContentService.createTextOutput();
-  output.setMimeType(ContentService.MimeType.JSON);
-
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName('Transacoes') || ss.insertSheet('Transacoes');
-    var action = e.parameter ? e.parameter.action : null;
+    
+    var action = e && e.parameter ? e.parameter.action : null;
     var result = {};
-
+    
     // Log da ação para debugging
     Logger.log('Ação recebida: ' + action);
-
+    
     // Verificar se está online
     if (!action) {
       result = {
         success: true,
-        message: "O serviço Financeiro está online e pronto para receber dados via POST."
+        message: "O serviço Financeiro está online e pronto para receber dados."
       };
     }
-
+    
     // Exportar transações para a planilha
     else if (action === 'exportTransactions' && e.postData) {
-      var data = JSON.parse(e.postData.contents);
+      var data;
+      
+      // Verificar se os dados foram enviados via form ou direct JSON
+      if (e.parameter.data) {
+        data = JSON.parse(e.parameter.data);
+      } else {
+        data = JSON.parse(e.postData.contents);
+      }
+      
       var transactions = data.transactions;
       
       Logger.log('Exportando ' + transactions.length + ' transações');
@@ -109,7 +111,7 @@ function doPost(e) {
         message: 'Transações exportadas com sucesso!'
       };
     }
-
+    
     // Importar transações da planilha
     else if (action === 'importTransactions') {
       var dataRange = sheet.getDataRange();
@@ -156,10 +158,18 @@ function doPost(e) {
         };
       }
     }
-
+    
     // Sincronizar todas as transações
     else if (action === 'syncTransactions' && e.postData) {
-      var data = JSON.parse(e.postData.contents);
+      var data;
+      
+      // Verificar se os dados foram enviados via form ou direct JSON
+      if (e.parameter.data) {
+        data = JSON.parse(e.parameter.data);
+      } else {
+        data = JSON.parse(e.postData.contents);
+      }
+      
       var transactions = data.transactions;
       
       Logger.log('Sincronizando ' + transactions.length + ' transações');
@@ -232,7 +242,7 @@ function doPost(e) {
         message: 'Transações sincronizadas com sucesso!'
       };
     }
-
+    
     else {
       result = {
         success: false,
@@ -240,20 +250,48 @@ function doPost(e) {
       };
     }
     
-    output.setContent(JSON.stringify(result));
-    return output;
+    var jsonOutput;
+    if (isIframe) {
+      // Para solicitações de iframe, precisamos enviar uma resposta que inclua script para postMessage
+      var iframeId = e.parameter._iframe;
+      var responseHtml = '<html><body><script>window.parent.postMessage(' + 
+                         JSON.stringify({ 
+                           iframeId: iframeId, 
+                           data: result 
+                         }) + 
+                         ', "*");</script></body></html>';
+                         
+      return HtmlService.createHtmlOutput(responseHtml);
+    } else {
+      // Para solicitações normais, enviar resposta JSON
+      return output.setContent(JSON.stringify(result));
+    }
     
   } catch (error) {
     Logger.log('Erro: ' + error.toString());
-    output.setContent(JSON.stringify({
-      success: false,
-      error: error.toString()
-    }));
-    return output;
+    
+    if (isIframe) {
+      // Para solicitações de iframe, enviar erro via postMessage
+      var iframeId = e.parameter._iframe;
+      var responseHtml = '<html><body><script>window.parent.postMessage(' + 
+                         JSON.stringify({ 
+                           iframeId: iframeId, 
+                           error: error.toString() 
+                         }) + 
+                         ', "*");</script></body></html>';
+                         
+      return HtmlService.createHtmlOutput(responseHtml);
+    } else {
+      // Para solicitações normais, enviar erro como JSON
+      return output.setContent(JSON.stringify({
+        success: false,
+        error: error.toString()
+      }));
+    }
   }
 }
 
-// Funç��o para mesclar transações do app com transações da planilha
+// Função para mesclar transações do app com transações da planilha
 function mergeTransactions(appTransactions, sheetTransactions) {
   var mergedMap = {};
   
@@ -285,73 +323,74 @@ function mergeTransactions(appTransactions, sheetTransactions) {
 `;
 
 export const clientesSheetScript = `
+/**
+ * Script para integração com planilha de Clientes
+ * 
+ * IMPORTANTE: Este script deve ser salvo no Apps Script da planilha e publicado como aplicativo web
+ * com acesso para "Qualquer pessoa, mesmo anônima"
+ */
+
 function doGet(e) {
+  return handleRequest(e);
+}
+
+function doPost(e) {
+  return handleRequest(e);
+}
+
+function handleRequest(e) {
+  // Configurar resposta JSON
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
   
-  if (e && e.parameter && e.parameter.method === 'options') {
-    output.setContent(JSON.stringify({
-      status: 'ok',
-      message: 'CORS preflight handled'
-    }));
-    return output;
-  }
-
+  // Verificar se a solicitação veio de um iframe
+  var isIframe = e && e.parameter && e.parameter._iframe;
+  
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName('Clientes') || ss.insertSheet('Clientes');
     
-    // Verificar se a planilha já tem cabeçalhos
+    // Verificar se a planilha já tem cabeçalhos, caso não, criar
     if (sheet.getLastRow() === 0) {
       var headers = [
         'ID', 'Nome', 'Email', 'Telefone', 'Endereço',
         'Data Cadastro', 'Total Compras', 'Última Compra',
         'Observações', 'Status', 'CPF/CNPJ', 'Categoria'
       ];
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers])
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      
+      // Formatar cabeçalhos
+      sheet.getRange(1, 1, 1, headers.length)
         .setBackground('#4285f4')
         .setFontColor('#ffffff')
         .setFontWeight('bold');
     }
-
-    output.setContent(JSON.stringify({
-      success: true,
-      message: "O serviço Clientes está online e pronto para receber dados via POST."
-    }));
-    return output;
-  } catch (error) {
-    output.setContent(JSON.stringify({
-      success: false,
-      error: error.toString()
-    }));
-    return output;
-  }
-}
-
-function doPost(e) {
-  var output = ContentService.createTextOutput();
-  output.setMimeType(ContentService.MimeType.JSON);
-
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName('Clientes') || ss.insertSheet('Clientes');
-    var action = e.parameter ? e.parameter.action : null;
+    
+    var action = e && e.parameter ? e.parameter.action : null;
     var result = {};
-
-    // Log da ação
+    
+    // Log da ação para debugging
     Logger.log('Ação recebida: ' + action);
-
+    
     // Verificar se está online
     if (!action) {
       result = {
         success: true,
-        message: "O serviço Clientes está online e pronto para receber dados via POST."
+        message: "O serviço Clientes está online e pronto para receber dados."
       };
     }
-
+    
     // Exportar clientes para a planilha
     else if (action === 'exportCustomers' && e.postData) {
-      var data = JSON.parse(e.postData.contents);
+      var data;
+      
+      // Verificar se os dados foram enviados via form ou direct JSON
+      if (e.parameter.data) {
+        data = JSON.parse(e.parameter.data);
+      } else {
+        data = JSON.parse(e.postData.contents);
+      }
+      
       var customers = data.customers;
       
       Logger.log('Exportando ' + customers.length + ' clientes');
@@ -391,7 +430,7 @@ function doPost(e) {
         message: 'Clientes exportados com sucesso!'
       };
     }
-
+    
     // Importar clientes da planilha
     else if (action === 'importCustomers') {
       var dataRange = sheet.getDataRange();
@@ -435,10 +474,18 @@ function doPost(e) {
         };
       }
     }
-
+    
     // Sincronizar todos os clientes
     else if (action === 'syncCustomers' && e.postData) {
-      var data = JSON.parse(e.postData.contents);
+      var data;
+      
+      // Verificar se os dados foram enviados via form ou direct JSON
+      if (e.parameter.data) {
+        data = JSON.parse(e.parameter.data);
+      } else {
+        data = JSON.parse(e.postData.contents);
+      }
+      
       var customers = data.customers;
       
       Logger.log('Sincronizando ' + customers.length + ' clientes');
@@ -505,7 +552,7 @@ function doPost(e) {
         message: 'Clientes sincronizados com sucesso!'
       };
     }
-
+    
     else {
       result = {
         success: false,
@@ -513,16 +560,44 @@ function doPost(e) {
       };
     }
     
-    output.setContent(JSON.stringify(result));
-    return output;
+    var jsonOutput;
+    if (isIframe) {
+      // Para solicitações de iframe, precisamos enviar uma resposta que inclua script para postMessage
+      var iframeId = e.parameter._iframe;
+      var responseHtml = '<html><body><script>window.parent.postMessage(' + 
+                         JSON.stringify({ 
+                           iframeId: iframeId, 
+                           data: result 
+                         }) + 
+                         ', "*");</script></body></html>';
+                         
+      return HtmlService.createHtmlOutput(responseHtml);
+    } else {
+      // Para solicitações normais, enviar resposta JSON
+      return output.setContent(JSON.stringify(result));
+    }
     
   } catch (error) {
     Logger.log('Erro: ' + error.toString());
-    output.setContent(JSON.stringify({
-      success: false,
-      error: error.toString()
-    }));
-    return output;
+    
+    if (isIframe) {
+      // Para solicitações de iframe, enviar erro via postMessage
+      var iframeId = e.parameter._iframe;
+      var responseHtml = '<html><body><script>window.parent.postMessage(' + 
+                         JSON.stringify({ 
+                           iframeId: iframeId, 
+                           error: error.toString() 
+                         }) + 
+                         ', "*");</script></body></html>';
+                         
+      return HtmlService.createHtmlOutput(responseHtml);
+    } else {
+      // Para solicitações normais, enviar erro como JSON
+      return output.setContent(JSON.stringify({
+        success: false,
+        error: error.toString()
+      }));
+    }
   }
 }
 
@@ -558,18 +633,29 @@ function mergeCustomers(appCustomers, sheetCustomers) {
 `;
 
 export const operacoesSheetScript = `
+/**
+ * Script para integração com planilha de Operações
+ * 
+ * IMPORTANTE: Este script deve ser salvo no Apps Script da planilha e publicado como aplicativo web
+ * com acesso para "Qualquer pessoa, mesmo anônima"
+ */
+
 function doGet(e) {
+  return handleRequest(e);
+}
+
+function doPost(e) {
+  return handleRequest(e);
+}
+
+function handleRequest(e) {
+  // Configurar resposta JSON
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
   
-  if (e && e.parameter && e.parameter.method === 'options') {
-    output.setContent(JSON.stringify({
-      status: 'ok',
-      message: 'CORS preflight handled'
-    }));
-    return output;
-  }
-
+  // Verificar se a solicitação veio de um iframe
+  var isIframe = e && e.parameter && e.parameter._iframe;
+  
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var productsSheet = ss.getSheetByName('Produtos') || ss.insertSheet('Produtos');
@@ -582,7 +668,10 @@ function doGet(e) {
         'Estoque', 'Categoria', 'Estoque Mínimo',
         'Fornecedor', 'Código de Barras', 'Data Cadastro'
       ];
-      productsSheet.getRange(1, 1, 1, productHeaders.length).setValues([productHeaders])
+      productsSheet.getRange(1, 1, 1, productHeaders.length).setValues([productHeaders]);
+      
+      // Formatar cabeçalhos
+      productsSheet.getRange(1, 1, 1, productHeaders.length)
         .setBackground('#4285f4')
         .setFontColor('#ffffff')
         .setFontWeight('bold');
@@ -594,51 +683,40 @@ function doGet(e) {
         'ID', 'Nome', 'Contato', 'Email', 'Telefone',
         'Endereço', 'Produtos', 'CNPJ', 'Categoria'
       ];
-      suppliersSheet.getRange(1, 1, 1, supplierHeaders.length).setValues([supplierHeaders])
+      suppliersSheet.getRange(1, 1, 1, supplierHeaders.length).setValues([supplierHeaders]);
+      
+      // Formatar cabeçalhos
+      suppliersSheet.getRange(1, 1, 1, supplierHeaders.length)
         .setBackground('#4285f4')
         .setFontColor('#ffffff')
         .setFontWeight('bold');
     }
-
-    output.setContent(JSON.stringify({
-      success: true,
-      message: "O serviço Operações está online e pronto para receber dados via POST."
-    }));
-    return output;
-  } catch (error) {
-    output.setContent(JSON.stringify({
-      success: false,
-      error: error.toString()
-    }));
-    return output;
-  }
-}
-
-function doPost(e) {
-  var output = ContentService.createTextOutput();
-  output.setMimeType(ContentService.MimeType.JSON);
-
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var productsSheet = ss.getSheetByName('Produtos') || ss.insertSheet('Produtos');
-    var suppliersSheet = ss.getSheetByName('Fornecedores') || ss.insertSheet('Fornecedores');
-    var action = e.parameter ? e.parameter.action : null;
+    
+    var action = e && e.parameter ? e.parameter.action : null;
     var result = {};
-
-    // Log da ação
+    
+    // Log da ação para debugging
     Logger.log('Ação recebida: ' + action);
-
+    
     // Verificar se está online
     if (!action) {
       result = {
         success: true,
-        message: "O serviço Operações está online e pronto para receber dados via POST."
+        message: "O serviço Operações está online e pronto para receber dados."
       };
     }
-
+    
     // Exportar produtos para a planilha
     else if (action === 'exportProducts' && e.postData) {
-      var data = JSON.parse(e.postData.contents);
+      var data;
+      
+      // Verificar se os dados foram enviados via form ou direct JSON
+      if (e.parameter.data) {
+        data = JSON.parse(e.parameter.data);
+      } else {
+        data = JSON.parse(e.postData.contents);
+      }
+      
       var products = data.products;
       
       Logger.log('Exportando ' + products.length + ' produtos');
@@ -677,10 +755,85 @@ function doPost(e) {
         message: 'Produtos exportados com sucesso!'
       };
     }
-
+    
+    // Importar operações da planilha
+    else if (action === 'importOperations') {
+      // Importar produtos
+      var productsDataRange = productsSheet.getDataRange();
+      var productsValues = productsDataRange.getValues();
+      var products = [];
+      
+      Logger.log('Importando produtos e fornecedores da planilha');
+      
+      if (productsValues.length > 1) {
+        var productHeaders = productsValues[0];
+        
+        for (var i = 1; i < productsValues.length; i++) {
+          var row = productsValues[i];
+          var product = {
+            id: row[0],
+            name: row[1],
+            description: row[2],
+            price: Number(row[3]),
+            cost: Number(row[4]),
+            stock: Number(row[5]),
+            category: row[6],
+            minimumStock: Number(row[7]),
+            supplier: row[8],
+            barcode: row[9],
+            createdAt: row[10]
+          };
+          
+          products.push(product);
+        }
+      }
+      
+      // Importar fornecedores
+      var suppliersDataRange = suppliersSheet.getDataRange();
+      var suppliersValues = suppliersDataRange.getValues();
+      var suppliers = [];
+      
+      if (suppliersValues.length > 1) {
+        var supplierHeaders = suppliersValues[0];
+        
+        for (var i = 1; i < suppliersValues.length; i++) {
+          var row = suppliersValues[i];
+          var supplier = {
+            id: row[0],
+            name: row[1],
+            contactName: row[2],
+            email: row[3],
+            phone: row[4],
+            address: row[5],
+            products: row[6] ? row[6].split(', ') : [],
+            document: row[7],
+            category: row[8]
+          };
+          
+          suppliers.push(supplier);
+        }
+      }
+      
+      result = {
+        success: true,
+        data: {
+          products: products,
+          suppliers: suppliers
+        }
+      };
+    }
+    
     // Sincronizar operações (produtos e fornecedores)
     else if (action === 'syncOperations' && e.postData) {
-      var data = JSON.parse(e.postData.contents);
+      var data;
+      
+      // Verificar se os dados foram enviados via form ou direct JSON
+      if (e.parameter.data) {
+        data = JSON.parse(e.parameter.data);
+      } else {
+        data = JSON.parse(e.postData.contents);
+      }
+      
       var products = data.products;
       var suppliers = data.suppliers;
       
@@ -801,74 +954,7 @@ function doPost(e) {
         message: 'Operações sincronizadas com sucesso!'
       };
     }
-
-    // Importar operações da planilha
-    else if (action === 'importOperations') {
-      // Importar produtos
-      var productsDataRange = productsSheet.getDataRange();
-      var productsValues = productsDataRange.getValues();
-      var products = [];
-      
-      Logger.log('Importando produtos e fornecedores da planilha');
-      
-      if (productsValues.length > 1) {
-        var productHeaders = productsValues[0];
-        
-        for (var i = 1; i < productsValues.length; i++) {
-          var row = productsValues[i];
-          var product = {
-            id: row[0],
-            name: row[1],
-            description: row[2],
-            price: Number(row[3]),
-            cost: Number(row[4]),
-            stock: Number(row[5]),
-            category: row[6],
-            minimumStock: Number(row[7]),
-            supplier: row[8],
-            barcode: row[9],
-            createdAt: row[10]
-          };
-          
-          products.push(product);
-        }
-      }
-      
-      // Importar fornecedores
-      var suppliersDataRange = suppliersSheet.getDataRange();
-      var suppliersValues = suppliersDataRange.getValues();
-      var suppliers = [];
-      
-      if (suppliersValues.length > 1) {
-        var supplierHeaders = suppliersValues[0];
-        
-        for (var i = 1; i < suppliersValues.length; i++) {
-          var row = suppliersValues[i];
-          var supplier = {
-            id: row[0],
-            name: row[1],
-            contactName: row[2],
-            email: row[3],
-            phone: row[4],
-            address: row[5],
-            products: row[6] ? row[6].split(', ') : [],
-            document: row[7],
-            category: row[8]
-          };
-          
-          suppliers.push(supplier);
-        }
-      }
-      
-      result = {
-        success: true,
-        data: {
-          products: products,
-          suppliers: suppliers
-        }
-      };
-    }
-
+    
     else {
       result = {
         success: false,
@@ -876,16 +962,44 @@ function doPost(e) {
       };
     }
     
-    output.setContent(JSON.stringify(result));
-    return output;
+    var jsonOutput;
+    if (isIframe) {
+      // Para solicitações de iframe, precisamos enviar uma resposta que inclua script para postMessage
+      var iframeId = e.parameter._iframe;
+      var responseHtml = '<html><body><script>window.parent.postMessage(' + 
+                         JSON.stringify({ 
+                           iframeId: iframeId, 
+                           data: result 
+                         }) + 
+                         ', "*");</script></body></html>';
+                         
+      return HtmlService.createHtmlOutput(responseHtml);
+    } else {
+      // Para solicitações normais, enviar resposta JSON
+      return output.setContent(JSON.stringify(result));
+    }
     
   } catch (error) {
     Logger.log('Erro: ' + error.toString());
-    output.setContent(JSON.stringify({
-      success: false,
-      error: error.toString()
-    }));
-    return output;
+    
+    if (isIframe) {
+      // Para solicitações de iframe, enviar erro via postMessage
+      var iframeId = e.parameter._iframe;
+      var responseHtml = '<html><body><script>window.parent.postMessage(' + 
+                         JSON.stringify({ 
+                           iframeId: iframeId, 
+                           error: error.toString() 
+                         }) + 
+                         ', "*");</script></body></html>';
+                         
+      return HtmlService.createHtmlOutput(responseHtml);
+    } else {
+      // Para solicitações normais, enviar erro como JSON
+      return output.setContent(JSON.stringify({
+        success: false,
+        error: error.toString()
+      }));
+    }
   }
 }
 
@@ -948,36 +1062,4 @@ function mergeSuppliers(appSuppliers, sheetSuppliers) {
   
   return mergedArray;
 }
-`;
-
-export const sheetIntegrationInstructions = `
-## Instruções para integrar com Google Sheets (2024)
-
-Para integrar o sistema com o Google Sheets, siga estes passos para cada planilha:
-
-1. Acesse cada uma das suas planilhas do Google (Financeiro, Clientes e Operações)
-
-2. Em cada planilha:
-   a. Clique em Extensões > Apps Script
-   b. Cole o código correspondente para cada planilha
-   c. Salve o projeto
-   d. Clique em "Implantar" > "Nova implantação"
-   e. Selecione "Aplicativo da web"
-   f. Configure:
-      - Execute como: Eu mesmo (seu email)
-      - Quem tem acesso: Qualquer pessoa
-   g. Clique em "Implantar"
-   h. Autorize o aplicativo quando solicitado
-   i. Copie a URL do aplicativo da web gerada
-
-3. No sistema:
-   - Cole cada URL no campo correspondente em Configurações > Integrações
-   - Salve as configurações
-   - Teste a sincronização usando o botão "Sincronizar com Google Sheets"
-
-4. Para verificar se está funcionando:
-   - Faça uma alteração no sistema e sincronize
-   - Verifique se os dados aparecem nas planilhas
-   - Faça uma alteração nas planilhas e sincronize
-   - Verifique se os dados são atualizados no sistema
 `;

@@ -25,7 +25,7 @@ export let scriptUrls = {
 };
 
 // Current CORS method to use for requests
-let currentCorsMethod: CorsMethod = 'direct';
+let currentCorsMethod: CorsMethod = 'iframe';
 
 // Get current CORS method
 export function getCurrentCorsMethod(): CorsMethod {
@@ -39,12 +39,132 @@ export function setCorsMethod(method: CorsMethod) {
   syncLog.addLog("Configuração", "success", `Método CORS alterado para ${method}`);
 }
 
+// Sistema de log para rastrear operações com Google Sheets
+export const syncLog = {
+  logs: [] as Array<{timestamp: string, action: string, status: string, details?: string}>,
+  addLog: function(action: string, status: string, details?: string) {
+    const timestamp = new Date().toISOString();
+    this.logs.push({ timestamp, action, status, details });
+    console.log(`[${timestamp}] ${action}: ${status} - ${details || 'No details'}`);
+  },
+  getLogs: function() {
+    return this.logs;
+  },
+  clearLogs: function() {
+    this.logs = [];
+  }
+};
+
+// Implementação do método iframe para CORS
+function createIframeRequest(url: string, data?: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const iframeId = `iframe-${Date.now()}`;
+    const iframe = document.createElement('iframe');
+    
+    iframe.style.display = 'none';
+    iframe.id = iframeId;
+    document.body.appendChild(iframe);
+    
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const response = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        
+        if (response && response.iframeId === iframeId) {
+          window.removeEventListener('message', handleMessage);
+          document.body.removeChild(iframe);
+          
+          if (response.error) {
+            reject(new Error(response.error));
+          } else {
+            resolve(response.data);
+          }
+        }
+      } catch (error) {
+        // Ignorar mensagens que não são para este iframe
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    
+    // Criar o formulário dentro do iframe
+    const completeUrl = data ? `${url}&_iframe=${iframeId}` : `${url}?_iframe=${iframeId}`;
+    
+    if (data) {
+      // Para POST com dados
+      setTimeout(() => {
+        const doc = iframe.contentWindow?.document;
+        if (doc) {
+          doc.open();
+          doc.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <script>
+                const iframeId = "${iframeId}";
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = "${url}";
+                
+                const inputData = document.createElement('input');
+                inputData.type = 'hidden';
+                inputData.name = 'data';
+                inputData.value = '${JSON.stringify(data)}';
+                form.appendChild(inputData);
+                
+                const inputIframe = document.createElement('input');
+                inputIframe.type = 'hidden';
+                inputIframe.name = '_iframe';
+                inputIframe.value = iframeId;
+                form.appendChild(inputIframe);
+                
+                document.body.appendChild(form);
+                form.submit();
+              </script>
+            </head>
+            <body></body>
+            </html>
+          `);
+          doc.close();
+        } else {
+          reject(new Error("Não foi possível acessar o documento do iframe"));
+        }
+      }, 100);
+    } else {
+      // Para GET
+      iframe.src = completeUrl;
+    }
+    
+    // Timeout de 30 segundos
+    setTimeout(() => {
+      try {
+        if (document.body.contains(iframe)) {
+          window.removeEventListener('message', handleMessage);
+          document.body.removeChild(iframe);
+          reject(new Error("Timeout: A requisição excedeu o tempo limite de 30 segundos"));
+        }
+      } catch (e) {
+        console.error("Erro ao remover iframe após timeout:", e);
+      }
+    }, 30000);
+  });
+}
+
 // Test a CORS method
 export async function testCorsMethod(url: string, method: CorsMethod): Promise<{success: boolean, error?: string}> {
   try {
     let response;
     
     switch(method) {
+      case 'iframe':
+        try {
+          await createIframeRequest(`${url}&method=test`);
+          return { success: true };
+        } catch (error) {
+          return { 
+            success: false, 
+            error: error instanceof Error ? error.message : String(error)
+          };
+        }
       case 'direct':
         response = await fetch(url, { 
           method: 'GET',
@@ -90,10 +210,28 @@ export async function testCorsMethod(url: string, method: CorsMethod): Promise<{
           xhr.send();
         });
       case 'jsonp':
-      case 'iframe':
-        // These methods require more complex implementation
-        // and are not suitable for all API endpoints
-        throw new Error(`Método ${method} não implementado para teste automático`);
+        // JSONP implementation
+        return new Promise((resolve) => {
+          const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+          (window as any)[callbackName] = (data: any) => {
+            delete (window as any)[callbackName];
+            document.body.removeChild(script);
+            resolve({ success: true });
+          };
+
+          const script = document.createElement('script');
+          script.src = `${url}&callback=${callbackName}`;
+          document.body.appendChild(script);
+
+          // Timeout para fallback
+          setTimeout(() => {
+            if ((window as any)[callbackName]) {
+              delete (window as any)[callbackName];
+              document.body.removeChild(script);
+              resolve({ success: false, error: 'JSONP request timeout' });
+            }
+          }, 10000);
+        });
     }
     
     // For no-cors mode, we can't access the response status
@@ -118,24 +256,11 @@ export async function testCorsMethod(url: string, method: CorsMethod): Promise<{
   const savedMethod = localStorage.getItem('cors_method');
   if (savedMethod && ['direct', 'proxy', 'no-cors', 'no-cache', 'xhr', 'jsonp', 'iframe'].includes(savedMethod)) {
     currentCorsMethod = savedMethod as CorsMethod;
+  } else {
+    currentCorsMethod = 'iframe'; // Definir iframe como método padrão
+    localStorage.setItem('cors_method', 'iframe');
   }
 })();
-
-// Sistema de log para rastrear operações com Google Sheets
-export const syncLog = {
-  logs: [] as Array<{timestamp: string, action: string, status: string, details?: string}>,
-  addLog: function(action: string, status: string, details?: string) {
-    const timestamp = new Date().toISOString();
-    this.logs.push({ timestamp, action, status, details });
-    console.log(`[${timestamp}] ${action}: ${status} - ${details || 'No details'}`);
-  },
-  getLogs: function() {
-    return this.logs;
-  },
-  clearLogs: function() {
-    this.logs = [];
-  }
-};
 
 // Função para atualizar URLs dos scripts e planilhas
 export function updateScriptUrls(
@@ -208,6 +333,67 @@ export function getScriptUrl(type: 'financeiro' | 'clientes' | 'operacoes'): str
   return scriptUrls[type];
 }
 
+// Executar requisição baseada no método CORS atual
+async function executeRequest(url: string, method: string, data?: any): Promise<any> {
+  syncLog.addLog("Requisição", "info", `Executando requisição para ${url} usando método ${currentCorsMethod}`);
+  
+  switch (currentCorsMethod) {
+    case 'iframe':
+      try {
+        if (method.toUpperCase() === 'GET') {
+          return await createIframeRequest(url);
+        } else {
+          return await createIframeRequest(url, data);
+        }
+      } catch (error) {
+        throw new Error(`Erro na requisição iframe: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    
+    case 'direct':
+      if (method.toUpperCase() === 'GET') {
+        const response = await fetch(url, { method: 'GET', mode: 'cors' });
+        if (!response.ok) {
+          throw new Error(`Erro HTTP: ${response.status}`);
+        }
+        return await response.json();
+      } else {
+        const response = await fetch(url, {
+          method: 'POST',
+          mode: 'cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!response.ok) {
+          throw new Error(`Erro HTTP: ${response.status}`);
+        }
+        return await response.json();
+      }
+    
+    case 'proxy':
+      const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`;
+      if (method.toUpperCase() === 'GET') {
+        const response = await fetch(proxyUrl, { method: 'GET' });
+        if (!response.ok) {
+          throw new Error(`Erro HTTP: ${response.status}`);
+        }
+        return await response.json();
+      } else {
+        const response = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!response.ok) {
+          throw new Error(`Erro HTTP: ${response.status}`);
+        }
+        return await response.json();
+      }
+      
+    default:
+      throw new Error(`Método CORS não suportado: ${currentCorsMethod}`);
+  }
+}
+
 // Funções de sincronização com Google Sheets
 export async function syncWithGoogleSheets(
   transactions: FinancialTransaction[],
@@ -244,25 +430,12 @@ export async function exportTransactionsToSheet(transactions: FinancialTransacti
   try {
     syncLog.addLog("Exportar Transações", "info", `Enviando ${transactions.length} transações para o Google Sheets`);
     
-    const response = await fetch(url + '?action=exportTransactions', {
-      method: 'POST',
-      mode: 'cors',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ transactions }),
-    });
+    const requestUrl = url + '?action=exportTransactions';
+    const result = await executeRequest(requestUrl, 'POST', { transactions });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      syncLog.addLog("Exportar Transações", "error", `Erro ao exportar transações: ${response.status} - ${errorText}`);
-      throw new Error(`Erro ao exportar transações: ${response.status} - ${errorText}`);
-    }
-    
-    const data = await response.json();
-    if (!data.success) {
-      syncLog.addLog("Exportar Transações", "error", `Erro no script: ${data.error || 'Erro desconhecido'}`);
-      throw new Error(`Erro no script: ${data.error || 'Erro desconhecido'}`);
+    if (!result.success) {
+      syncLog.addLog("Exportar Transações", "error", `Erro no script: ${result.error || 'Erro desconhecido'}`);
+      throw new Error(`Erro no script: ${result.error || 'Erro desconhecido'}`);
     }
     
     syncLog.addLog("Exportar Transações", "success", "Transações exportadas com sucesso");
@@ -288,25 +461,12 @@ export async function exportCustomersToSheet(customers: Customer[]): Promise<voi
   try {
     syncLog.addLog("Exportar Clientes", "info", `Enviando ${customers.length} clientes para o Google Sheets`);
     
-    const response = await fetch(url + '?action=exportCustomers', {
-      method: 'POST',
-      mode: 'cors',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ customers }),
-    });
+    const requestUrl = url + '?action=exportCustomers';
+    const result = await executeRequest(requestUrl, 'POST', { customers });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      syncLog.addLog("Exportar Clientes", "error", `Erro ao exportar clientes: ${response.status} - ${errorText}`);
-      throw new Error(`Erro ao exportar clientes: ${response.status} - ${errorText}`);
-    }
-    
-    const data = await response.json();
-    if (!data.success) {
-      syncLog.addLog("Exportar Clientes", "error", `Erro no script: ${data.error || 'Erro desconhecido'}`);
-      throw new Error(`Erro no script: ${data.error || 'Erro desconhecido'}`);
+    if (!result.success) {
+      syncLog.addLog("Exportar Clientes", "error", `Erro no script: ${result.error || 'Erro desconhecido'}`);
+      throw new Error(`Erro no script: ${result.error || 'Erro desconhecido'}`);
     }
     
     syncLog.addLog("Exportar Clientes", "success", "Clientes exportados com sucesso");
@@ -332,25 +492,12 @@ export async function exportProductsToSheet(products: Product[]): Promise<void> 
   try {
     syncLog.addLog("Exportar Produtos", "info", `Enviando ${products.length} produtos para o Google Sheets`);
     
-    const response = await fetch(url + '?action=exportProducts', {
-      method: 'POST',
-      mode: 'cors',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ products }),
-    });
+    const requestUrl = url + '?action=exportProducts';
+    const result = await executeRequest(requestUrl, 'POST', { products });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      syncLog.addLog("Exportar Produtos", "error", `Erro ao exportar produtos: ${response.status} - ${errorText}`);
-      throw new Error(`Erro ao exportar produtos: ${response.status} - ${errorText}`);
-    }
-    
-    const data = await response.json();
-    if (!data.success) {
-      syncLog.addLog("Exportar Produtos", "error", `Erro no script: ${data.error || 'Erro desconhecido'}`);
-      throw new Error(`Erro no script: ${data.error || 'Erro desconhecido'}`);
+    if (!result.success) {
+      syncLog.addLog("Exportar Produtos", "error", `Erro no script: ${result.error || 'Erro desconhecido'}`);
+      throw new Error(`Erro no script: ${result.error || 'Erro desconhecido'}`);
     }
     
     syncLog.addLog("Exportar Produtos", "success", "Produtos exportados com sucesso");
@@ -415,29 +562,17 @@ async function importTransactionsFromSheet(): Promise<FinancialTransaction[]> {
   try {
     syncLog.addLog("Importar Transações", "info", "Iniciando importação de transações");
     
-    const response = await fetch(url + '?action=importTransactions', {
-      method: 'GET',
-      mode: 'cors',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const requestUrl = url + '?action=importTransactions';
+    const result = await executeRequest(requestUrl, 'GET');
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      syncLog.addLog("Importar Transações", "error", `Erro ao importar transações: ${response.status} - ${errorText}`);
-      throw new Error(`Erro ao importar transações: ${response.status} - ${errorText}`);
+    if (!result.success) {
+      syncLog.addLog("Importar Transações", "error", `Erro no script: ${result.error || 'Erro desconhecido'}`);
+      throw new Error(`Erro no script: ${result.error || 'Erro desconhecido'}`);
     }
     
-    const data = await response.json();
-    if (!data.success) {
-      syncLog.addLog("Importar Transações", "error", `Erro no script: ${data.error || 'Erro desconhecido'}`);
-      throw new Error(`Erro no script: ${data.error || 'Erro desconhecido'}`);
-    }
-    
-    const count = data.data ? data.data.length : 0;
+    const count = result.data ? result.data.length : 0;
     syncLog.addLog("Importar Transações", "success", `${count} transações importadas com sucesso`);
-    return data.data || [];
+    return result.data || [];
   } catch (error: any) {
     syncLog.addLog("Importar Transações", "error", `Erro ao importar transações: ${error.message || error.toString()}`);
     console.error("Erro ao importar transações do Google Sheets:", error);
@@ -450,29 +585,17 @@ async function importCustomersFromSheet(): Promise<Customer[]> {
   try {
     syncLog.addLog("Importar Clientes", "info", "Iniciando importação de clientes");
     
-    const response = await fetch(url + '?action=importCustomers', {
-      method: 'GET',
-      mode: 'cors',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const requestUrl = url + '?action=importCustomers';
+    const result = await executeRequest(requestUrl, 'GET');
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      syncLog.addLog("Importar Clientes", "error", `Erro ao importar clientes: ${response.status} - ${errorText}`);
-      throw new Error(`Erro ao importar clientes: ${response.status} - ${errorText}`);
+    if (!result.success) {
+      syncLog.addLog("Importar Clientes", "error", `Erro no script: ${result.error || 'Erro desconhecido'}`);
+      throw new Error(`Erro no script: ${result.error || 'Erro desconhecido'}`);
     }
     
-    const data = await response.json();
-    if (!data.success) {
-      syncLog.addLog("Importar Clientes", "error", `Erro no script: ${data.error || 'Erro desconhecido'}`);
-      throw new Error(`Erro no script: ${data.error || 'Erro desconhecido'}`);
-    }
-    
-    const count = data.data ? data.data.length : 0;
+    const count = result.data ? result.data.length : 0;
     syncLog.addLog("Importar Clientes", "success", `${count} clientes importados com sucesso`);
-    return data.data || [];
+    return result.data || [];
   } catch (error: any) {
     syncLog.addLog("Importar Clientes", "error", `Erro ao importar clientes: ${error.message || error.toString()}`);
     console.error("Erro ao importar clientes do Google Sheets:", error);
@@ -485,33 +608,21 @@ async function importOperationsFromSheet(): Promise<{ products: Product[]; suppl
   try {
     syncLog.addLog("Importar Operações", "info", "Iniciando importação de produtos e fornecedores");
     
-    const response = await fetch(url + '?action=importOperations', {
-      method: 'GET',
-      mode: 'cors',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const requestUrl = url + '?action=importOperations';
+    const result = await executeRequest(requestUrl, 'GET');
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      syncLog.addLog("Importar Operações", "error", `Erro ao importar operações: ${response.status} - ${errorText}`);
-      throw new Error(`Erro ao importar operações: ${response.status} - ${errorText}`);
+    if (!result.success) {
+      syncLog.addLog("Importar Operações", "error", `Erro no script: ${result.error || 'Erro desconhecido'}`);
+      throw new Error(`Erro no script: ${result.error || 'Erro desconhecido'}`);
     }
     
-    const data = await response.json();
-    if (!data.success) {
-      syncLog.addLog("Importar Operações", "error", `Erro no script: ${data.error || 'Erro desconhecido'}`);
-      throw new Error(`Erro no script: ${data.error || 'Erro desconhecido'}`);
-    }
-    
-    const productsCount = data.data?.products ? data.data.products.length : 0;
-    const suppliersCount = data.data?.suppliers ? data.data.suppliers.length : 0;
+    const productsCount = result.data?.products ? result.data.products.length : 0;
+    const suppliersCount = result.data?.suppliers ? result.data.suppliers.length : 0;
     syncLog.addLog("Importar Operações", "success", `${productsCount} produtos e ${suppliersCount} fornecedores importados com sucesso`);
     
     return {
-      products: data.data?.products || [],
-      suppliers: data.data?.suppliers || []
+      products: result.data?.products || [],
+      suppliers: result.data?.suppliers || []
     };
   } catch (error: any) {
     syncLog.addLog("Importar Operações", "error", `Erro ao importar operações: ${error.message || error.toString()}`);
