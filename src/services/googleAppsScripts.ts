@@ -1,4 +1,3 @@
-
 export const financeiroSheetScript = `
 /**
  * Script para integração com planilha de Financeiro
@@ -25,20 +24,22 @@ function handleRequest(e) {
   
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName('Transacoes') || ss.insertSheet('Transacoes');
     
-    // Verificar se a planilha já tem cabeçalhos, caso não, criar
-    if (sheet.getLastRow() === 0) {
+    // Criar ou obter a única sheet de Transações
+    var transactionsSheet = ss.getSheetByName('Transacoes');
+    if (!transactionsSheet) {
+      transactionsSheet = ss.insertSheet('Transacoes');
+      
       var headers = [
         'ID', 'Data', 'Tipo', 'Descrição', 'Categoria', 
         'Valor', 'Método de Pagamento', 'Cliente', 'ClienteID',
         'Produtos', 'ProdutoIDs', 'Status', 'Notas', 
         'Reembolsável', 'Transação Relacionada'
       ];
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      transactionsSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
       
       // Formatar cabeçalhos
-      sheet.getRange(1, 1, 1, headers.length)
+      transactionsSheet.getRange(1, 1, 1, headers.length)
         .setBackground('#4285f4')
         .setFontColor('#ffffff')
         .setFontWeight('bold');
@@ -74,8 +75,8 @@ function handleRequest(e) {
       Logger.log('Exportando ' + transactions.length + ' transações');
       
       // Limpar dados existentes (exceto cabeçalhos)
-      if (sheet.getLastRow() > 1) {
-        sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clear();
+      if (transactionsSheet.getLastRow() > 1) {
+        transactionsSheet.getRange(2, 1, transactionsSheet.getLastRow() - 1, transactionsSheet.getLastColumn()).clear();
       }
       
       // Adicionar novos dados
@@ -100,10 +101,10 @@ function handleRequest(e) {
           ];
         });
         
-        sheet.getRange(2, 1, values.length, values[0].length).setValues(values);
+        transactionsSheet.getRange(2, 1, values.length, values[0].length).setValues(values);
         
         // Formatar colunas
-        sheet.autoResizeColumns(1, values[0].length);
+        transactionsSheet.autoResizeColumns(1, values[0].length);
       }
       
       result = {
@@ -114,7 +115,7 @@ function handleRequest(e) {
     
     // Importar transações da planilha
     else if (action === 'importTransactions') {
-      var dataRange = sheet.getDataRange();
+      var dataRange = transactionsSheet.getDataRange();
       var values = dataRange.getValues();
       
       Logger.log('Importando transações da planilha');
@@ -176,7 +177,7 @@ function handleRequest(e) {
       
       // Implementar sincronização bidirecional
       // 1. Obter dados existentes da planilha
-      var dataRange = sheet.getDataRange();
+      var dataRange = transactionsSheet.getDataRange();
       var values = dataRange.getValues();
       var headers = values[0];
       var sheetTransactions = [];
@@ -208,8 +209,8 @@ function handleRequest(e) {
       var mergedTransactions = mergeTransactions(transactions, sheetTransactions);
       
       // 3. Limpar dados existentes e exportar dados mesclados
-      if (sheet.getLastRow() > 1) {
-        sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clear();
+      if (transactionsSheet.getLastRow() > 1) {
+        transactionsSheet.getRange(2, 1, transactionsSheet.getLastRow() - 1, transactionsSheet.getLastColumn()).clear();
       }
       
       if (mergedTransactions.length > 0) {
@@ -233,8 +234,8 @@ function handleRequest(e) {
           ];
         });
         
-        sheet.getRange(2, 1, values.length, values[0].length).setValues(values);
-        sheet.autoResizeColumns(1, values[0].length);
+        transactionsSheet.getRange(2, 1, values.length, values[0].length).setValues(values);
+        transactionsSheet.autoResizeColumns(1, values[0].length);
       }
       
       result = {
@@ -348,19 +349,21 @@ function handleRequest(e) {
   
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName('Clientes') || ss.insertSheet('Clientes');
     
-    // Verificar se a planilha já tem cabeçalhos, caso não, criar
-    if (sheet.getLastRow() === 0) {
-      var headers = [
+    // Criar ou obter a única sheet de Clientes
+    var clientsSheet = ss.getSheetByName('Clientes');
+    if (!clientsSheet) {
+      clientsSheet = ss.insertSheet('Clientes');
+      
+      var clientHeaders = [
         'ID', 'Nome', 'Email', 'Telefone', 'Endereço',
         'Data Cadastro', 'Total Compras', 'Última Compra',
         'Observações', 'Status', 'CPF/CNPJ', 'Categoria'
       ];
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      clientsSheet.getRange(1, 1, 1, clientHeaders.length).setValues([clientHeaders]);
       
       // Formatar cabeçalhos
-      sheet.getRange(1, 1, 1, headers.length)
+      clientsSheet.getRange(1, 1, 1, clientHeaders.length)
         .setBackground('#4285f4')
         .setFontColor('#ffffff')
         .setFontWeight('bold');
@@ -396,8 +399,8 @@ function handleRequest(e) {
       Logger.log('Exportando ' + customers.length + ' clientes');
       
       // Limpar dados existentes (exceto cabeçalhos)
-      if (sheet.getLastRow() > 1) {
-        sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clear();
+      if (clientsSheet.getLastRow() > 1) {
+        clientsSheet.getRange(2, 1, clientsSheet.getLastRow() - 1, clientsSheet.getLastColumn()).clear();
       }
       
       // Adicionar novos dados
@@ -419,10 +422,10 @@ function handleRequest(e) {
           ];
         });
         
-        sheet.getRange(2, 1, values.length, values[0].length).setValues(values);
+        clientsSheet.getRange(2, 1, values.length, values[0].length).setValues(values);
         
         // Formatar colunas
-        sheet.autoResizeColumns(1, values[0].length);
+        clientsSheet.autoResizeColumns(1, values[0].length);
       }
       
       result = {
@@ -433,7 +436,7 @@ function handleRequest(e) {
     
     // Importar clientes da planilha
     else if (action === 'importCustomers') {
-      var dataRange = sheet.getDataRange();
+      var dataRange = clientsSheet.getDataRange();
       var values = dataRange.getValues();
       
       Logger.log('Importando clientes da planilha');
@@ -492,7 +495,7 @@ function handleRequest(e) {
       
       // Implementar sincronização bidirecional
       // 1. Obter dados existentes da planilha
-      var dataRange = sheet.getDataRange();
+      var dataRange = clientsSheet.getDataRange();
       var values = dataRange.getValues();
       var headers = values[0];
       var sheetCustomers = [];
@@ -521,8 +524,8 @@ function handleRequest(e) {
       var mergedCustomers = mergeCustomers(customers, sheetCustomers);
       
       // 3. Limpar dados existentes e exportar dados mesclados
-      if (sheet.getLastRow() > 1) {
-        sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clear();
+      if (clientsSheet.getLastRow() > 1) {
+        clientsSheet.getRange(2, 1, clientsSheet.getLastRow() - 1, clientsSheet.getLastColumn()).clear();
       }
       
       if (mergedCustomers.length > 0) {
@@ -543,8 +546,8 @@ function handleRequest(e) {
           ];
         });
         
-        sheet.getRange(2, 1, values.length, values[0].length).setValues(values);
-        sheet.autoResizeColumns(1, values[0].length);
+        clientsSheet.getRange(2, 1, values.length, values[0].length).setValues(values);
+        clientsSheet.autoResizeColumns(1, values[0].length);
       }
       
       result = {
@@ -658,11 +661,12 @@ function handleRequest(e) {
   
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var productsSheet = ss.getSheetByName('Produtos') || ss.insertSheet('Produtos');
-    var suppliersSheet = ss.getSheetByName('Fornecedores') || ss.insertSheet('Fornecedores');
     
-    // Configurar cabeçalhos para Produtos
-    if (productsSheet.getLastRow() === 0) {
+    // Criar ou obter a única sheet de Produtos
+    var productsSheet = ss.getSheetByName('Produtos');
+    if (!productsSheet) {
+      productsSheet = ss.insertSheet('Produtos');
+      
       var productHeaders = [
         'ID', 'Nome', 'Descrição', 'Preço', 'Custo',
         'Estoque', 'Categoria', 'Estoque Mínimo',
@@ -677,8 +681,11 @@ function handleRequest(e) {
         .setFontWeight('bold');
     }
     
-    // Configurar cabeçalhos para Fornecedores
-    if (suppliersSheet.getLastRow() === 0) {
+    // Criar ou obter a única sheet de Fornecedores
+    var suppliersSheet = ss.getSheetByName('Fornecedores');
+    if (!suppliersSheet) {
+      suppliersSheet = ss.insertSheet('Fornecedores');
+      
       var supplierHeaders = [
         'ID', 'Nome', 'Contato', 'Email', 'Telefone',
         'Endereço', 'Produtos', 'CNPJ', 'Categoria'
