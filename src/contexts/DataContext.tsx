@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { 
   FinancialTransaction, 
@@ -85,10 +84,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSuppliers(getSuppliers());
 
     // Then try to load from Supabase if user is logged in
-    if (user) {
+    if (user && isValidUUID(user.id)) {
       refreshData();
     }
   }, [user]);
+
+  // Helper function to check if a string is a valid UUID
+  const isValidUUID = (str?: string): boolean => {
+    if (!str) return false;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  };
 
   useEffect(() => {
     updateDashboardSummary();
@@ -160,7 +166,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshData = async () => {
-    if (!user?.id) return;
+    if (!user?.id || !isValidUUID(user.id)) {
+      toast.warning("ID do usuário inválido. Usando apenas dados locais.");
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -232,8 +241,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setTransactions(updatedTransactions);
     saveTransactions(updatedTransactions);
 
-    // Save to Supabase if user is logged in
-    if (user?.id) {
+    // Save to Supabase if user is logged in with valid UUID
+    if (user?.id && isValidUUID(user.id)) {
       try {
         const { error } = await supabase
           .from('transactions')
@@ -258,8 +267,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setTransactions(updatedTransactions);
     saveTransactions(updatedTransactions);
 
-    // Update in Supabase if user is logged in
-    if (user?.id) {
+    // Update in Supabase if user is logged in with valid UUID
+    if (user?.id && isValidUUID(user.id)) {
       try {
         const transaction = updatedTransactions.find(t => t.id === id);
         if (transaction) {
@@ -287,8 +296,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setTransactions(updatedTransactions);
     saveTransactions(updatedTransactions);
 
-    // Delete from Supabase if user is logged in
-    if (user?.id) {
+    // Delete from Supabase if user is logged in with valid UUID
+    if (user?.id && isValidUUID(user.id)) {
       try {
         const { error } = await supabase
           .from('transactions')
@@ -317,8 +326,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setCustomers(updatedCustomers);
     saveCustomers(updatedCustomers);
 
-    // Save to Supabase if user is logged in
-    if (user?.id) {
+     // Save to Supabase if user is logged in with valid UUID
+    if (user?.id && isValidUUID(user.id)) {
       try {
         const { error } = await supabase
           .from('customers')
@@ -343,8 +352,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setCustomers(updatedCustomers);
     saveCustomers(updatedCustomers);
 
-    // Update in Supabase if user is logged in
-    if (user?.id) {
+    // Update in Supabase if user is logged in with valid UUID
+    if (user?.id && isValidUUID(user.id)) {
       try {
         const customer = updatedCustomers.find(c => c.id === id);
         if (customer) {
@@ -372,8 +381,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setCustomers(updatedCustomers);
     saveCustomers(updatedCustomers);
 
-    // Delete from Supabase if user is logged in
-    if (user?.id) {
+    // Delete from Supabase if user is logged in with valid UUID
+    if (user?.id && isValidUUID(user.id)) {
       try {
         const { error } = await supabase
           .from('customers')
@@ -402,8 +411,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setProducts(updatedProducts);
     saveProducts(updatedProducts);
 
-    // Save to Supabase if user is logged in
-    if (user?.id) {
+    // Save to Supabase if user is logged in with valid UUID
+    if (user?.id && isValidUUID(user.id)) {
       try {
         const { error } = await supabase
           .from('products')
@@ -428,8 +437,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setProducts(updatedProducts);
     saveProducts(updatedProducts);
 
-    // Update in Supabase if user is logged in
-    if (user?.id) {
+    // Update in Supabase if user is logged in with valid UUID
+    if (user?.id && isValidUUID(user.id)) {
       try {
         const product = updatedProducts.find(p => p.id === id);
         if (product) {
@@ -457,8 +466,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setProducts(updatedProducts);
     saveProducts(updatedProducts);
 
-    // Delete from Supabase if user is logged in
-    if (user?.id) {
+    // Delete from Supabase if user is logged in with valid UUID
+    if (user?.id && isValidUUID(user.id)) {
       try {
         const { error } = await supabase
           .from('products')
@@ -487,8 +496,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSuppliers(updatedSuppliers);
     saveSuppliers(updatedSuppliers);
 
-    // Save to Supabase if user is logged in
-    if (user?.id) {
+    // Save to Supabase if user is logged in with valid UUID
+    if (user?.id && isValidUUID(user.id)) {
       try {
         const { error } = await supabase
           .from('suppliers')
@@ -513,8 +522,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSuppliers(updatedSuppliers);
     saveSuppliers(updatedSuppliers);
 
-    // Update in Supabase if user is logged in
-    if (user?.id) {
+    // Update in Supabase if user is logged in with valid UUID
+    if (user?.id && isValidUUID(user.id)) {
       try {
         const supplier = updatedSuppliers.find(s => s.id === id);
         if (supplier) {
@@ -542,8 +551,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSuppliers(updatedSuppliers);
     saveSuppliers(updatedSuppliers);
 
-    // Delete from Supabase if user is logged in
-    if (user?.id) {
+    // Delete from Supabase if user is logged in with valid UUID
+    if (user?.id && isValidUUID(user.id)) {
       try {
         const { error } = await supabase
           .from('suppliers')
@@ -562,8 +571,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const syncWithDatabase = async () => {
-    if (!user?.id) {
-      toast.warning("Você precisa estar logado para sincronizar com o banco de dados");
+    if (!user?.id || !isValidUUID(user.id)) {
+      toast.warning("Você precisa estar logado com um ID válido para sincronizar com o banco de dados");
       return;
     }
     
@@ -630,7 +639,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       clearAllData();
 
       // Delete from Supabase if user is logged in
-      if (user?.id) {
+      if (user?.id && isValidUUID(user.id)) {
         setIsLoading(true);
         try {
           toast.info("Removendo dados do banco de dados...");
