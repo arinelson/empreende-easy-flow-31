@@ -17,17 +17,20 @@ import {
   setSuppliers as saveSuppliers,
   clearAllData
 } from "@/services/localStorage";
-import { 
-  syncWithGoogleSheets,
-  exportTransactionsToSheet,
-  exportCustomersToSheet,
-  exportProductsToSheet,
-  importFromGoogleSheets,
-  syncLog,
-  getScriptUrl
-} from "@/services/googleSheets";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  toAppTransaction,
+  toDbTransaction,
+  toAppCustomer,
+  toDbCustomer,
+  toAppProduct,
+  toDbProduct,
+  toAppSupplier,
+  toDbSupplier
+} from "@/types/supabase";
 
 interface DataContextType {
   transactions: FinancialTransaction[];
@@ -47,12 +50,10 @@ interface DataContextType {
   deleteCustomer: (id: string) => void;
   deleteProduct: (id: string) => void;
   deleteSupplier: (id: string) => void;
-  syncWithSheet: () => Promise<void>;
-  exportToSheet: (type: 'transactions' | 'customers' | 'products') => Promise<void>;
-  importFromSheet: () => Promise<void>;
+  syncWithDatabase: () => Promise<void>;
   clearData: () => void;
   isLoading: boolean;
-  getSyncLogs: () => Array<{timestamp: string, action: string, status: string, details?: string}>;
+  refreshData: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -63,6 +64,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const { user } = useAuth();
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary>({
     totalIncome: 0,
     totalExpenses: 0,
@@ -73,11 +75,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
+    // Load data from localStorage first for instant UI rendering
     setTransactions(getTransactions());
     setCustomers(getCustomers());
     setProducts(getProducts());
     setSuppliers(getSuppliers());
-  }, []);
+
+    // Then try to load from Supabase if user is logged in
+    if (user) {
+      refreshData();
+    }
+  }, [user]);
 
   useEffect(() => {
     updateDashboardSummary();
@@ -109,295 +117,524 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const addTransaction = (transaction: Omit<FinancialTransaction, 'id'>) => {
+  const refreshData = async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    try {
+      // Fetch transactions from Supabase
+      const { data: transactionData, error: transactionError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id);
+      
+      if (transactionError) throw transactionError;
+      
+      const mappedTransactions = transactionData.map(toAppTransaction);
+      setTransactions(mappedTransactions);
+      saveTransactions(mappedTransactions);
+      
+      // Fetch customers from Supabase
+      const { data: customerData, error: customerError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('user_id', user.id);
+      
+      if (customerError) throw customerError;
+      
+      const mappedCustomers = customerData.map(toAppCustomer);
+      setCustomers(mappedCustomers);
+      saveCustomers(mappedCustomers);
+      
+      // Fetch products from Supabase
+      const { data: productData, error: productError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('user_id', user.id);
+      
+      if (productError) throw productError;
+      
+      const mappedProducts = productData.map(toAppProduct);
+      setProducts(mappedProducts);
+      saveProducts(mappedProducts);
+      
+      // Fetch suppliers from Supabase
+      const { data: supplierData, error: supplierError } = await supabase
+        .from('suppliers')
+        .select('*')
+        .eq('user_id', user.id);
+      
+      if (supplierError) throw supplierError;
+      
+      const mappedSuppliers = supplierData.map(toAppSupplier);
+      setSuppliers(mappedSuppliers);
+      saveSuppliers(mappedSuppliers);
+
+      toast.success("Dados atualizados com sucesso!");
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
+      toast.error("Erro ao carregar dados do banco de dados");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const addTransaction = async (transaction: Omit<FinancialTransaction, 'id'>) => {
     const newTransaction: FinancialTransaction = {
       ...transaction,
       id: uuidv4(),
     };
+
+    // Update local state
     const updatedTransactions = [...transactions, newTransaction];
     setTransactions(updatedTransactions);
     saveTransactions(updatedTransactions);
+
+    // Save to Supabase if user is logged in
+    if (user) {
+      try {
+        const { error } = await supabase
+          .from('transactions')
+          .insert(toDbTransaction(newTransaction, user.id));
+
+        if (error) throw error;
+      } catch (error) {
+        console.error("Error adding transaction to database:", error);
+        toast.error("Erro ao salvar transação no banco de dados");
+      }
+    }
+
     toast.success("Transação adicionada com sucesso!");
   };
 
-  const updateTransaction = (id: string, data: Partial<FinancialTransaction>) => {
+  const updateTransaction = async (id: string, data: Partial<FinancialTransaction>) => {
     const updatedTransactions = transactions.map(transaction => 
       transaction.id === id ? { ...transaction, ...data } : transaction
     );
+    
+    // Update local state
     setTransactions(updatedTransactions);
     saveTransactions(updatedTransactions);
+
+    // Update in Supabase if user is logged in
+    if (user) {
+      try {
+        const transaction = updatedTransactions.find(t => t.id === id);
+        if (transaction) {
+          const { error } = await supabase
+            .from('transactions')
+            .update(toDbTransaction(transaction, user.id))
+            .eq('id', id)
+            .eq('user_id', user.id);
+
+          if (error) throw error;
+        }
+      } catch (error) {
+        console.error("Error updating transaction in database:", error);
+        toast.error("Erro ao atualizar transação no banco de dados");
+      }
+    }
+
     toast.success("Transação atualizada com sucesso!");
   };
 
-  const deleteTransaction = (id: string) => {
+  const deleteTransaction = async (id: string) => {
     const updatedTransactions = transactions.filter(transaction => transaction.id !== id);
+    
+    // Update local state
     setTransactions(updatedTransactions);
     saveTransactions(updatedTransactions);
+
+    // Delete from Supabase if user is logged in
+    if (user) {
+      try {
+        const { error } = await supabase
+          .from('transactions')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+      } catch (error) {
+        console.error("Error deleting transaction from database:", error);
+        toast.error("Erro ao excluir transação do banco de dados");
+      }
+    }
+
     toast.success("Transação removida com sucesso!");
   };
 
-  const addCustomer = (customer: Omit<Customer, 'id'>) => {
+  const addCustomer = async (customer: Omit<Customer, 'id'>) => {
     const newCustomer: Customer = {
       ...customer,
       id: uuidv4(),
     };
+    
+    // Update local state
     const updatedCustomers = [...customers, newCustomer];
     setCustomers(updatedCustomers);
     saveCustomers(updatedCustomers);
+
+    // Save to Supabase if user is logged in
+    if (user) {
+      try {
+        const { error } = await supabase
+          .from('customers')
+          .insert(toDbCustomer(newCustomer, user.id));
+
+        if (error) throw error;
+      } catch (error) {
+        console.error("Error adding customer to database:", error);
+        toast.error("Erro ao salvar cliente no banco de dados");
+      }
+    }
+
     toast.success("Cliente adicionado com sucesso!");
   };
 
-  const updateCustomer = (id: string, data: Partial<Customer>) => {
+  const updateCustomer = async (id: string, data: Partial<Customer>) => {
     const updatedCustomers = customers.map(customer => 
       customer.id === id ? { ...customer, ...data } : customer
     );
+    
+    // Update local state
     setCustomers(updatedCustomers);
     saveCustomers(updatedCustomers);
+
+    // Update in Supabase if user is logged in
+    if (user) {
+      try {
+        const customer = updatedCustomers.find(c => c.id === id);
+        if (customer) {
+          const { error } = await supabase
+            .from('customers')
+            .update(toDbCustomer(customer, user.id))
+            .eq('id', id)
+            .eq('user_id', user.id);
+
+          if (error) throw error;
+        }
+      } catch (error) {
+        console.error("Error updating customer in database:", error);
+        toast.error("Erro ao atualizar cliente no banco de dados");
+      }
+    }
+
     toast.success("Cliente atualizado com sucesso!");
   };
 
-  const deleteCustomer = (id: string) => {
+  const deleteCustomer = async (id: string) => {
     const updatedCustomers = customers.filter(customer => customer.id !== id);
+    
+    // Update local state
     setCustomers(updatedCustomers);
     saveCustomers(updatedCustomers);
+
+    // Delete from Supabase if user is logged in
+    if (user) {
+      try {
+        const { error } = await supabase
+          .from('customers')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+      } catch (error) {
+        console.error("Error deleting customer from database:", error);
+        toast.error("Erro ao excluir cliente do banco de dados");
+      }
+    }
+
     toast.success("Cliente removido com sucesso!");
   };
 
-  const addProduct = (product: Omit<Product, 'id'>) => {
+  const addProduct = async (product: Omit<Product, 'id'>) => {
     const newProduct: Product = {
       ...product,
       id: uuidv4(),
     };
+    
+    // Update local state
     const updatedProducts = [...products, newProduct];
     setProducts(updatedProducts);
     saveProducts(updatedProducts);
+
+    // Save to Supabase if user is logged in
+    if (user) {
+      try {
+        const { error } = await supabase
+          .from('products')
+          .insert(toDbProduct(newProduct, user.id));
+
+        if (error) throw error;
+      } catch (error) {
+        console.error("Error adding product to database:", error);
+        toast.error("Erro ao salvar produto no banco de dados");
+      }
+    }
+
     toast.success("Produto adicionado com sucesso!");
   };
 
-  const updateProduct = (id: string, data: Partial<Product>) => {
+  const updateProduct = async (id: string, data: Partial<Product>) => {
     const updatedProducts = products.map(product => 
       product.id === id ? { ...product, ...data } : product
     );
+    
+    // Update local state
     setProducts(updatedProducts);
     saveProducts(updatedProducts);
+
+    // Update in Supabase if user is logged in
+    if (user) {
+      try {
+        const product = updatedProducts.find(p => p.id === id);
+        if (product) {
+          const { error } = await supabase
+            .from('products')
+            .update(toDbProduct(product, user.id))
+            .eq('id', id)
+            .eq('user_id', user.id);
+
+          if (error) throw error;
+        }
+      } catch (error) {
+        console.error("Error updating product in database:", error);
+        toast.error("Erro ao atualizar produto no banco de dados");
+      }
+    }
+
     toast.success("Produto atualizado com sucesso!");
   };
 
-  const deleteProduct = (id: string) => {
+  const deleteProduct = async (id: string) => {
     const updatedProducts = products.filter(product => product.id !== id);
+    
+    // Update local state
     setProducts(updatedProducts);
     saveProducts(updatedProducts);
+
+    // Delete from Supabase if user is logged in
+    if (user) {
+      try {
+        const { error } = await supabase
+          .from('products')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+      } catch (error) {
+        console.error("Error deleting product from database:", error);
+        toast.error("Erro ao excluir produto do banco de dados");
+      }
+    }
+
     toast.success("Produto removido com sucesso!");
   };
 
-  const addSupplier = (supplier: Omit<Supplier, 'id'>) => {
+  const addSupplier = async (supplier: Omit<Supplier, 'id'>) => {
     const newSupplier: Supplier = {
       ...supplier,
       id: uuidv4(),
     };
+    
+    // Update local state
     const updatedSuppliers = [...suppliers, newSupplier];
     setSuppliers(updatedSuppliers);
     saveSuppliers(updatedSuppliers);
+
+    // Save to Supabase if user is logged in
+    if (user) {
+      try {
+        const { error } = await supabase
+          .from('suppliers')
+          .insert(toDbSupplier(newSupplier, user.id));
+
+        if (error) throw error;
+      } catch (error) {
+        console.error("Error adding supplier to database:", error);
+        toast.error("Erro ao salvar fornecedor no banco de dados");
+      }
+    }
+
     toast.success("Fornecedor adicionado com sucesso!");
   };
 
-  const updateSupplier = (id: string, data: Partial<Supplier>) => {
+  const updateSupplier = async (id: string, data: Partial<Supplier>) => {
     const updatedSuppliers = suppliers.map(supplier => 
       supplier.id === id ? { ...supplier, ...data } : supplier
     );
+    
+    // Update local state
     setSuppliers(updatedSuppliers);
     saveSuppliers(updatedSuppliers);
+
+    // Update in Supabase if user is logged in
+    if (user) {
+      try {
+        const supplier = updatedSuppliers.find(s => s.id === id);
+        if (supplier) {
+          const { error } = await supabase
+            .from('suppliers')
+            .update(toDbSupplier(supplier, user.id))
+            .eq('id', id)
+            .eq('user_id', user.id);
+
+          if (error) throw error;
+        }
+      } catch (error) {
+        console.error("Error updating supplier in database:", error);
+        toast.error("Erro ao atualizar fornecedor no banco de dados");
+      }
+    }
+
     toast.success("Fornecedor atualizado com sucesso!");
   };
 
-  const deleteSupplier = (id: string) => {
+  const deleteSupplier = async (id: string) => {
     const updatedSuppliers = suppliers.filter(supplier => supplier.id !== id);
+    
+    // Update local state
     setSuppliers(updatedSuppliers);
     saveSuppliers(updatedSuppliers);
+
+    // Delete from Supabase if user is logged in
+    if (user) {
+      try {
+        const { error } = await supabase
+          .from('suppliers')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+      } catch (error) {
+        console.error("Error deleting supplier from database:", error);
+        toast.error("Erro ao excluir fornecedor do banco de dados");
+      }
+    }
+
     toast.success("Fornecedor removido com sucesso!");
   };
 
-  const syncWithSheet = async () => {
-    if (isLoading) {
-      toast.warning("Sincronização já em andamento. Aguarde...");
+  const syncWithDatabase = async () => {
+    if (!user) {
+      toast.warning("Você precisa estar logado para sincronizar com o banco de dados");
       return;
     }
     
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      toast.info("Sincronizando com Google Sheets...");
-      
-      const financeiroUrl = localStorage.getItem('financeiro_script_url');
-      const clientesUrl = localStorage.getItem('clientes_script_url');
-      const operacoesUrl = localStorage.getItem('operacoes_script_url');
-      
-      console.log("URLs de scripts a serem usadas:", {
-        financeiro: financeiroUrl,
-        clientes: clientesUrl,
-        operacoes: operacoesUrl
-      });
-      
-      if (!financeiroUrl || !clientesUrl || !operacoesUrl) {
-        throw new Error("URLs dos scripts não configuradas. Configure-as em Configurações > Integrações.");
+      toast.info("Sincronizando dados com o banco de dados...");
+
+      // Sync transactions
+      for (const transaction of transactions) {
+        const { error: upsertError } = await supabase
+          .from('transactions')
+          .upsert(toDbTransaction(transaction, user.id))
+          .eq('user_id', user.id);
+
+        if (upsertError) throw upsertError;
       }
-      
-      let success = false;
-      let attempts = 0;
-      const maxAttempts = 3;
-      
-      while (!success && attempts < maxAttempts) {
-        attempts++;
-        try {
-          await syncWithGoogleSheets(transactions, customers, products, suppliers);
-          success = true;
-        } catch (error) {
-          console.error(`Tentativa ${attempts} falhou:`, error);
-          if (attempts === maxAttempts) throw error;
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
+
+      // Sync customers
+      for (const customer of customers) {
+        const { error: upsertError } = await supabase
+          .from('customers')
+          .upsert(toDbCustomer(customer, user.id))
+          .eq('user_id', user.id);
+
+        if (upsertError) throw upsertError;
       }
-      
-      toast.success("Dados sincronizados com Google Sheets com sucesso!");
-      
-      try {
-        const importedData = await importFromGoogleSheets();
-        if (importedData) {
-          setTransactions(importedData.transactions);
-          saveTransactions(importedData.transactions);
-          
-          setCustomers(importedData.customers);
-          saveCustomers(importedData.customers);
-          
-          setProducts(importedData.products);
-          saveProducts(importedData.products);
-          
-          setSuppliers(importedData.suppliers);
-          saveSuppliers(importedData.suppliers);
-          
-          toast.success("Dados atualizados com sucesso do Google Sheets!");
-        }
-      } catch (importError) {
-        console.error("Erro ao importar dados após sincronização:", importError);
+
+      // Sync products
+      for (const product of products) {
+        const { error: upsertError } = await supabase
+          .from('products')
+          .upsert(toDbProduct(product, user.id))
+          .eq('user_id', user.id);
+
+        if (upsertError) throw upsertError;
       }
+
+      // Sync suppliers
+      for (const supplier of suppliers) {
+        const { error: upsertError } = await supabase
+          .from('suppliers')
+          .upsert(toDbSupplier(supplier, user.id))
+          .eq('user_id', user.id);
+
+        if (upsertError) throw upsertError;
+      }
+
+      toast.success("Dados sincronizados com o banco de dados");
     } catch (error) {
-      console.error("Erro ao sincronizar com Google Sheets:", error);
-      toast.error(`Erro ao sincronizar com Google Sheets: ${error instanceof Error ? error.message : 'Verifique as configurações de integração'}`);
+      console.error("Erro ao sincronizar com o banco de dados:", error);
+      toast.error("Erro ao sincronizar com o banco de dados");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const exportToSheet = async (type: 'transactions' | 'customers' | 'products') => {
-    if (isLoading) {
-      toast.warning("Exportação já em andamento. Aguarde...");
-      return;
-    }
-    
-    try {
-      setIsLoading(true);
-      toast.info(`Exportando ${type === 'transactions' ? 'transações' : type === 'customers' ? 'clientes' : 'produtos'}...`);
-      
-      let success = false;
-      let attempts = 0;
-      const maxAttempts = 2;
-      
-      while (!success && attempts < maxAttempts) {
-        attempts++;
-        try {
-          switch (type) {
-            case 'transactions':
-              await exportTransactionsToSheet(transactions);
-              break;
-            case 'customers':
-              await exportCustomersToSheet(customers);
-              break;
-            case 'products':
-              await exportProductsToSheet(products);
-              break;
-          }
-          success = true;
-        } catch (error) {
-          console.error(`Tentativa ${attempts} falhou:`, error);
-          if (attempts === maxAttempts) throw error;
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-      
-      toast.success(`${type === 'transactions' ? 'Transações' : type === 'customers' ? 'Clientes' : 'Produtos'} exportados com sucesso!`);
-    } catch (error) {
-      console.error(`Erro ao exportar ${type}:`, error);
-      toast.error(`Erro ao exportar ${type}. Verifique os logs para mais detalhes.`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const importFromSheet = async () => {
-    if (isLoading) {
-      toast.warning("Importação já em andamento. Aguarde...");
-      return;
-    }
-    
-    try {
-      setIsLoading(true);
-      toast.info("Importando dados do Google Sheets...");
-      
-      let data = null;
-      let attempts = 0;
-      const maxAttempts = 3;
-      
-      while (!data && attempts < maxAttempts) {
-        attempts++;
-        try {
-          data = await importFromGoogleSheets();
-          if (!data) throw new Error("Dados importados são nulos");
-        } catch (error) {
-          console.error(`Tentativa ${attempts} falhou:`, error);
-          if (attempts === maxAttempts) throw error;
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-      
-      if (data) {
-        setTransactions(data.transactions);
-        saveTransactions(data.transactions);
-        
-        setCustomers(data.customers);
-        saveCustomers(data.customers);
-        
-        setProducts(data.products);
-        saveProducts(data.products);
-        
-        setSuppliers(data.suppliers);
-        saveSuppliers(data.suppliers);
-        
-        toast.success("Dados importados com sucesso do Google Sheets!");
-        updateDashboardSummary();
-      } else {
-        toast.error("Não foi possível importar os dados do Google Sheets.");
-      }
-    } catch (error) {
-      console.error("Erro ao importar do Google Sheets:", error);
-      toast.error("Erro ao importar do Google Sheets. Verifique os logs para mais detalhes.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const clearData = () => {
+  const clearData = async () => {
     if (window.confirm("Tem certeza que deseja limpar todos os dados? Esta ação não pode ser desfeita.")) {
+      // Clear local storage
       setTransactions([]);
       setCustomers([]);
       setProducts([]);
       setSuppliers([]);
       clearAllData();
-      syncLog.clearLogs();
+
+      // Delete from Supabase if user is logged in
+      if (user) {
+        setIsLoading(true);
+        try {
+          toast.info("Removendo dados do banco de dados...");
+          
+          // Delete all user's transactions
+          const { error: transactionError } = await supabase
+            .from('transactions')
+            .delete()
+            .eq('user_id', user.id);
+          
+          if (transactionError) throw transactionError;
+          
+          // Delete all user's customers
+          const { error: customerError } = await supabase
+            .from('customers')
+            .delete()
+            .eq('user_id', user.id);
+          
+          if (customerError) throw customerError;
+          
+          // Delete all user's products
+          const { error: productError } = await supabase
+            .from('products')
+            .delete()
+            .eq('user_id', user.id);
+          
+          if (productError) throw productError;
+          
+          // Delete all user's suppliers
+          const { error: supplierError } = await supabase
+            .from('suppliers')
+            .delete()
+            .eq('user_id', user.id);
+          
+          if (supplierError) throw supplierError;
+          
+        } catch (error) {
+          console.error("Error clearing data from database:", error);
+          toast.error("Erro ao limpar dados do banco de dados");
+        } finally {
+          setIsLoading(false);
+        }
+      }
+      
       toast.success("Todos os dados foram limpos com sucesso.");
     }
-  };
-
-  const getSyncLogs = () => {
-    return syncLog.getLogs();
   };
 
   return (
@@ -420,12 +657,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         deleteCustomer,
         deleteProduct,
         deleteSupplier,
-        syncWithSheet,
-        exportToSheet,
-        importFromSheet,
+        syncWithDatabase,
         clearData,
         isLoading,
-        getSyncLogs,
+        refreshData,
       }}
     >
       {children}
