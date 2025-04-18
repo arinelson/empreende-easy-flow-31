@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { User, USER, PASSWORD } from "@/types/models";
 import { getUser, setUser, isAuthenticated, setAuthenticated, logout } from "@/services/localStorage";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 interface AuthContextType {
   user: User | null;
@@ -26,10 +27,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Load user from localStorage
       const savedUser = getUser();
       if (savedUser) {
-        setCurrentUser(savedUser);
+        // Ensure user has an id for Supabase operations
+        const userWithId = {
+          ...savedUser,
+          id: savedUser.id || savedUser.username // Use username as ID if no ID exists
+        };
+        setCurrentUser(userWithId);
+        setUser(userWithId);
       } else {
         // Create default user if authenticated but no user data
         const defaultUser: User = {
+          id: USER, // Use username as ID
           username: USER,
           theme: 'light',
         };
@@ -42,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleLogin = (username: string, password: string): boolean => {
     if (username === USER && password === PASSWORD) {
       const newUser: User = {
+        id: username, // Use username as ID
         username: username,
         theme: 'light',
       };

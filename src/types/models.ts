@@ -16,6 +16,7 @@ export const SHEET_URL = FINANCEIRO_SCRIPT_URL;
 // Types for various data models
 
 export interface User {
+  id?: string;        // Added ID property for Supabase integration
   username: string;
   avatar?: string;
   theme?: 'light' | 'dark';
