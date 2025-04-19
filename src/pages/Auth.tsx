@@ -1,4 +1,3 @@
-
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -25,7 +24,7 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
-        const { error, data } = await supabase.auth.signUp({
+        const { error: signUpError } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
           options: {
@@ -35,31 +34,23 @@ const Auth = () => {
           }
         });
         
-        if (error) throw error;
-        
-        // Criar perfil após signup
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: data.user?.id,
-            username: formData.username || formData.email.split('@')[0],
-          });
-
-        if (profileError) throw profileError;
+        if (signUpError) throw signUpError;
         
         toast.success("Conta criada com sucesso! Faça login.");
-        setIsSignUp(false); // Mudar para login
+        setIsSignUp(false);
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { error: signInError } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
         });
         
-        if (error) throw error;
+        if (signInError) throw signInError;
+        
         toast.success("Login realizado com sucesso!");
-        navigate("/");
+        navigate("/dashboard");
       }
     } catch (error: any) {
+      console.error("Erro de autenticação:", error);
       toast.error(error.message);
     } finally {
       setLoading(false);

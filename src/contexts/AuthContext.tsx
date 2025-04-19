@@ -4,7 +4,6 @@ import { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
-// Extended user type that includes profile information
 interface UserWithProfile {
   id: string;
   email?: string;
@@ -31,7 +30,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Fetch user profile from profiles table
   const fetchUserProfile = async (userId: string) => {
     try {
+      console.log("Buscando perfil do usuário:", userId);
       setLoadingProfile(true);
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -39,41 +40,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (error) {
-        console.error('Error fetching user profile:', error);
+        console.error('Erro ao buscar perfil:', error);
         return;
       }
 
       if (data) {
+        console.log("Perfil encontrado:", data);
         setUserProfile({
           id: userId,
           email: user?.email,
           username: data.username,
           avatar: data.avatar
         });
-      } else {
-        // If no profile exists yet, create a default one with email as username
-        const newProfile = {
-          id: userId,
-          email: user?.email,
-          username: user?.email?.split('@')[0] || 'user'
-        };
-        
-        setUserProfile(newProfile);
-        
-        // Create profile in database
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert([{ 
-            id: userId, 
-            username: newProfile.username 
-          }]);
-          
-        if (insertError) {
-          console.error('Error creating user profile:', insertError);
-        }
       }
     } catch (err) {
-      console.error('Error in fetchUserProfile:', err);
+      console.error('Erro ao buscar perfil:', err);
     } finally {
       setLoadingProfile(false);
     }
@@ -82,16 +63,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("Sessão inicial:", session);
       setUser(session?.user ?? null);
       setIsAuthenticated(!!session?.user);
       
       if (session?.user) {
         fetchUserProfile(session.user.id);
+      } else {
+        setLoadingProfile(false);
       }
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log("Mudança de estado de autenticação:", { event: _event, session });
       setUser(session?.user ?? null);
       setIsAuthenticated(!!session?.user);
       
@@ -99,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetchUserProfile(session.user.id);
       } else {
         setUserProfile(null);
+        setLoadingProfile(false);
       }
     });
 
@@ -107,8 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleLogout = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      await supabase.auth.signOut();
       toast.success("Logout realizado com sucesso!");
     } catch (error: any) {
       toast.error("Erro ao realizar logout: " + error.message);
