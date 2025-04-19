@@ -21,6 +21,10 @@ import { useAuth } from "@/contexts/AuthContext";
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, loadingProfile } = useAuth();
 
+  useEffect(() => {
+    console.log("ProtectedRoute: Verificando autenticação", { isAuthenticated, loadingProfile });
+  }, [isAuthenticated, loadingProfile]);
+
   if (loadingProfile) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -30,19 +34,21 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!isAuthenticated) {
+    console.log("ProtectedRoute: Usuário não autenticado, redirecionando para /auth");
     return <Navigate to="/auth" />;
   }
 
+  console.log("ProtectedRoute: Usuário autenticado, exibindo conteúdo protegido");
   return <>{children}</>;
 };
 
 function AppRoutes() {
-  const { user, loadingProfile } = useAuth();
+  const { user, loadingProfile, isAuthenticated } = useAuth();
   
   // Logging para debug
   useEffect(() => {
-    console.log("Estado de autenticação:", { user, loadingProfile });
-  }, [user, loadingProfile]);
+    console.log("AppRoutes: Estado de autenticação:", { user, loadingProfile, isAuthenticated });
+  }, [user, loadingProfile, isAuthenticated]);
 
   return (
     <Routes>
@@ -64,7 +70,7 @@ function App() {
       <AuthProvider>
         <DataProvider>
           <AppRoutes />
-          <Toaster />
+          <Toaster position="top-right" richColors closeButton />
         </DataProvider>
       </AuthProvider>
     </Router>

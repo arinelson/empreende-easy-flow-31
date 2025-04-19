@@ -5,20 +5,26 @@ import { RecentTransactions } from "@/components/dashboard/RecentTransactions";
 import { Button } from "@/components/ui/button";
 import { useData } from "@/contexts/DataContext";
 import { Download, ExternalLink, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Dashboard = () => {
   const { refreshData, exportToExcel, isLoading } = useData();
   const [showExportOptions, setShowExportOptions] = useState(false);
+  const { userProfile } = useAuth();
+  
+  // Log para debug
+  useEffect(() => {
+    console.log("Dashboard: Componente carregado", { userProfile });
+  }, [userProfile]);
 
   return (
     <PageLayout>
       <div className="flex flex-col gap-6">
         <div className="flex flex-wrap justify-between items-center gap-4">
           <div>
-            <h1 className="heading-xl">Dashboard</h1>
+            <h1 className="text-3xl font-bold">Dashboard</h1>
             <p className="text-muted-foreground">
               Visão geral do seu negócio
             </p>
