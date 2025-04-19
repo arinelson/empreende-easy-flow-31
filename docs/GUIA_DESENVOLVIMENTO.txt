@@ -63,6 +63,17 @@ Solução:
 2. Confirmar se user_id está sendo usado corretamente nas queries
 3. Verificar logs do DataContext
 
+#### Problema: Erro ao inserir/atualizar dados no Supabase
+Causas possíveis:
+- Políticas RLS impedindo escrita
+- User ID inválido ou não autenticado
+- Dados não conformes com o esquema
+
+Solução:
+1. Confirmar que o usuário está autenticado antes de tentar operações de escrita
+2. Verificar se todas as tabelas possuem políticas RLS adequadas para INSERT/UPDATE/DELETE
+3. Validar formato dos dados antes de enviar ao banco
+
 ## 3. Guia de Modificações
 
 ### 3.1 Modificando a Autenticação
@@ -93,6 +104,7 @@ Para adicionar novos tipos de dados:
 1. Criar interfaces em types/models.ts
 2. Adicionar funções de fetch/update no DataContext
 3. Criar ou atualizar componentes relacionados
+4. Configurar políticas RLS correspondentes no Supabase
 
 ### 3.4 Adicionando Novas Páginas
 1. Criar novo arquivo em src/pages/
@@ -128,19 +140,41 @@ Para adicionar novos tipos de dados:
 - transactions: Transações financeiras
 - products: Produtos
 - customers: Clientes
+- suppliers: Fornecedores
+- transaction_products: Relacionamento entre transações e produtos
 
 ### 5.2 Políticas RLS
-Verificar e manter políticas para:
-- Leitura (SELECT)
-- Escrita (INSERT)
-- Atualização (UPDATE)
-- Deleção (DELETE)
+Cada tabela possui as seguintes políticas:
+- SELECT: Permite ao usuário ver apenas seus próprios dados
+- INSERT: Permite ao usuário inserir apenas dados associados ao seu ID
+- UPDATE: Permite ao usuário atualizar apenas seus próprios dados
+- DELETE: Permite ao usuário excluir apenas seus próprios dados
+
+Para verificar ou modificar políticas RLS:
+1. Acesse o Painel do Supabase > Banco de Dados > Políticas
+2. Selecione a tabela desejada
+3. Visualize ou edite as políticas existentes
+
+Exemplo de política RLS:
+```sql
+CREATE POLICY "Usuários podem ver seus próprios clientes"
+ON public.customers
+FOR SELECT
+USING (auth.uid() = user_id);
+```
 
 ### 5.3 Triggers
 - handle_new_user: Criação automática de perfil
 - update_modified_column: Atualização de timestamps
 - update_product_stock: Gestão de estoque
 - update_customer_purchases: Atualização de compras
+
+### 5.4 Resolução de Problemas com RLS
+Se os dados não estiverem sendo salvos ou recuperados corretamente:
+1. Verifique se o usuário está autenticado (auth.uid() válido)
+2. Confirme que as políticas RLS estão configuradas para a operação desejada
+3. Verifique se o campo user_id está sendo preenchido corretamente
+4. Use o Supabase Dashboard para inspecionar os logs de SQL
 
 ## 6. Deploy e Ambiente
 
@@ -171,6 +205,18 @@ npm run dev
 - Supabase Dashboard
 - Browser DevTools
 
+### 7.3 Verificação de RLS
+Para testar se as políticas RLS estão funcionando corretamente:
+1. Abra o SQL Editor no Supabase Dashboard
+2. Execute consultas assumindo diferentes roles:
+   ```sql
+   -- Como anon
+   select * from customers;
+   
+   -- Como usuário específico
+   select * from customers where user_id = '[ID_DO_USUÁRIO]';
+   ```
+
 ## 8. Manutenção
 
 ### 8.1 Atualizações Regulares
@@ -196,4 +242,3 @@ Para problemas persistentes:
 2. Revisar documentação
 3. Consultar comunidade
 4. Abrir issue no repositório
-
