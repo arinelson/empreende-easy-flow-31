@@ -1,0 +1,199 @@
+
+# Guia de Desenvolvimento - EasyFlow
+
+## 1. Estrutura do Projeto
+
+### 1.1 Arquivos Principais
+- `src/App.tsx`: Componente raiz que define a estrutura principal e provedores
+- `src/pages/`: Contém todas as páginas da aplicação
+- `src/components/`: Componentes reutilizáveis
+- `src/contexts/`: Gerenciamento de estado global
+- `src/lib/`: Utilitários e configurações
+
+### 1.2 Hierarquia de Provedores
+```
+<Router>
+  <ThemeProvider>      # Tema (dark/light)
+    <AuthProvider>     # Autenticação
+      <DataProvider>   # Dados da aplicação
+        <App />
+      </DataProvider>
+    </AuthProvider>
+  </ThemeProvider>
+</Router>
+```
+
+## 2. Erros Comuns e Soluções
+
+### 2.1 Erros de Autenticação
+
+#### Problema: Tela em branco após login
+Causas possíveis:
+- Perfil do usuário não está sendo criado no Supabase
+- Políticas de RLS não configuradas corretamente
+- Estado de autenticação não está sendo gerenciado corretamente
+
+Solução:
+1. Verificar se a tabela `profiles` existe e tem as políticas corretas
+2. Confirmar se o trigger `handle_new_user` está ativo
+3. Verificar logs de autenticação em `AuthContext.tsx`
+
+#### Problema: "useAuth must be used within an AuthProvider"
+Causa: Componente usando useAuth fora do AuthProvider
+Solução: Garantir que o componente está dentro da hierarquia do AuthProvider em App.tsx
+
+### 2.2 Erros de Tema
+
+#### Problema: "useTheme must be used within a ThemeProvider"
+Causa: Componente usando useTheme fora do ThemeProvider
+Solução: 
+1. Verificar se ThemeProvider está corretamente posicionado em App.tsx
+2. Confirmar importação correta de useTheme de '@/contexts/ThemeContext'
+
+### 2.3 Erros de Dados
+
+#### Problema: Dados não aparecem após autenticação
+Causas possíveis:
+- Políticas RLS não permitem acesso
+- Queries não estão usando o usuário correto
+- Erro na configuração do DataProvider
+
+Solução:
+1. Verificar políticas RLS no Supabase
+2. Confirmar se user_id está sendo usado corretamente nas queries
+3. Verificar logs do DataContext
+
+## 3. Guia de Modificações
+
+### 3.1 Modificando a Autenticação
+Arquivos principais:
+- `src/contexts/AuthContext.tsx`
+- `src/pages/Auth.tsx`
+
+Para adicionar novos campos ao perfil:
+1. Atualizar a interface UserWithProfile em AuthContext.tsx
+2. Modificar a função fetchUserProfile
+3. Atualizar o trigger handle_new_user no Supabase
+
+### 3.2 Modificando o Tema
+Arquivos principais:
+- `src/contexts/ThemeContext.tsx`
+- `src/components/ui/sonner.tsx`
+
+Para adicionar novas variáveis de tema:
+1. Atualizar ThemeContext.tsx
+2. Modificar as classes Tailwind correspondentes
+
+### 3.3 Modificando Dados
+Arquivos principais:
+- `src/contexts/DataContext.tsx`
+- `src/pages/` (páginas específicas)
+
+Para adicionar novos tipos de dados:
+1. Criar interfaces em types/models.ts
+2. Adicionar funções de fetch/update no DataContext
+3. Criar ou atualizar componentes relacionados
+
+### 3.4 Adicionando Novas Páginas
+1. Criar novo arquivo em src/pages/
+2. Adicionar rota em App.tsx
+3. Atualizar navegação em MainNav.tsx
+
+## 4. Boas Práticas
+
+### 4.1 Componentização
+- Manter componentes pequenos e focados
+- Extrair lógica complexa para hooks customizados
+- Usar composição ao invés de herança
+
+### 4.2 Gerenciamento de Estado
+- Usar context apenas para estado global
+- Preferir estado local quando possível
+- Implementar memorização (useMemo, useCallback) quando necessário
+
+### 4.3 Performance
+- Evitar re-renders desnecessários
+- Implementar paginação para listas grandes
+- Usar lazy loading para componentes pesados
+
+### 4.4 Segurança
+- Sempre validar inputs
+- Nunca expor chaves sensíveis
+- Manter políticas RLS atualizadas
+
+## 5. Supabase
+
+### 5.1 Tabelas Principais
+- profiles: Dados do perfil do usuário
+- transactions: Transações financeiras
+- products: Produtos
+- customers: Clientes
+
+### 5.2 Políticas RLS
+Verificar e manter políticas para:
+- Leitura (SELECT)
+- Escrita (INSERT)
+- Atualização (UPDATE)
+- Deleção (DELETE)
+
+### 5.3 Triggers
+- handle_new_user: Criação automática de perfil
+- update_modified_column: Atualização de timestamps
+- update_product_stock: Gestão de estoque
+- update_customer_purchases: Atualização de compras
+
+## 6. Deploy e Ambiente
+
+### 6.1 Variáveis de Ambiente
+Necessárias:
+- VITE_SUPABASE_URL
+- VITE_SUPABASE_ANON_KEY
+
+### 6.2 Build
+```bash
+npm run build
+```
+
+### 6.3 Desenvolvimento Local
+```bash
+npm run dev
+```
+
+## 7. Dicas de Debugging
+
+### 7.1 Console Logs Estratégicos
+- AuthContext: estado de autenticação
+- DataContext: carregamento de dados
+- Components: ciclo de vida e re-renders
+
+### 7.2 Ferramentas de Desenvolvimento
+- React DevTools
+- Supabase Dashboard
+- Browser DevTools
+
+## 8. Manutenção
+
+### 8.1 Atualizações Regulares
+- Verificar dependências desatualizadas
+- Manter políticas RLS atualizadas
+- Revisar logs de erro
+
+### 8.2 Backup
+- Manter backup do banco de dados
+- Documentar alterações significativas
+- Manter versionamento do código
+
+## 9. Contato e Suporte
+
+### 9.1 Recursos
+- Documentação Lovable: https://docs.lovable.dev/
+- Documentação Supabase: https://supabase.com/docs
+- Comunidade Discord Lovable
+
+### 9.2 Troubleshooting
+Para problemas persistentes:
+1. Verificar logs do console
+2. Revisar documentação
+3. Consultar comunidade
+4. Abrir issue no repositório
+
