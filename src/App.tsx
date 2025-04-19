@@ -15,6 +15,7 @@ import Index from "@/pages/Index";
 // Providers
 import { DataProvider } from "@/contexts/DataContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 
 // Protected Route Component
@@ -67,12 +68,14 @@ function AppRoutes() {
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <DataProvider>
-          <AppRoutes />
-          <Toaster position="top-right" richColors closeButton />
-        </DataProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <DataProvider>
+            <AppRoutes />
+            <Toaster position="top-right" richColors closeButton />
+          </DataProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </Router>
   );
 }
